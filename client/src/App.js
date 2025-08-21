@@ -9,6 +9,8 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [selectedBook, setSelectedBook] = useState(null); // State to manage the selected book
+  const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     // Test server connection
@@ -17,8 +19,9 @@ function App() {
       .then(data => {
         setServerStatus('connected');
         setServerMessage(data.message || 'Server connected successfully');
-        // Load books after connection is confirmed
+        // Load books and users after connection is confirmed
         loadBooks();
+        loadUsers();
       })
       .catch(error => {
         setServerStatus('error');
@@ -36,6 +39,25 @@ function App() {
     } catch (error) {
       console.error('Failed to load books:', error);
     }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      if (data.success && data.users.length > 0) {
+        setUsers(data.users);
+        setCurrentUser(data.users[0]); // Set the first user as the default
+      }
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
+
+  const handleUserChange = (event) => {
+    const selectedUsername = event.target.value;
+    const user = users.find(u => u.username === selectedUsername);
+    setCurrentUser(user);
   };
 
   const handleFileUpload = async (event) => {
@@ -124,6 +146,18 @@ function App() {
         <header className="header">
           <h1>📚 Epub Reader Demo</h1>
           <p>上传和管理你的电子书</p>
+          {currentUser && (
+            <div className="user-selection">
+              <span>当前用户: <strong>{currentUser.displayName}</strong></span>
+              <select onChange={handleUserChange} value={currentUser.username}>
+                {users.map(user => (
+                  <option key={user.username} value={user.username}>
+                    {user.displayName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </header>
 
         <div className="connection-test">

@@ -254,6 +254,28 @@
   border-bottom: none;
 }
 
+.user-selection {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.user-selection span {
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+.user-selection select {
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  background-color: white;
+  color: #333;
+  font-size: 14px;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 0 15px;

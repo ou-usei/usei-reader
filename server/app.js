@@ -85,6 +85,33 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Users API endpoint
+app.get('/api/users', (req, res) => {
+  const usersPath = path.join(__dirname, 'users.json');
+  fs.readFile(usersPath, 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading users.json:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to read users file'
+      });
+    }
+    try {
+      const users = JSON.parse(data);
+      res.json({
+        success: true,
+        users: users
+      });
+    } catch (parseErr) {
+      console.error('Error parsing users.json:', parseErr);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to parse users file'
+      });
+    }
+  });
+});
+
 // File upload endpoint
 app.post('/api/upload', upload.single('epub'), async (req, res) => {
   try {
