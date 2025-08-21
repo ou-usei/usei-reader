@@ -171,6 +171,18 @@ class Database {
     });
   }
 
+  getAllProgressForUser(username) {
+    return new Promise((resolve, reject) => {
+      this.db.all('SELECT * FROM reading_progress WHERE username = ?', [username], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows);
+        }
+      });
+    });
+  }
+
   // Excerpts CRUD operations
   createExcerpt(bookId, content, cfiRange, note = '') {
     return new Promise((resolve, reject) => {

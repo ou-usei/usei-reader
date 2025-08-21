@@ -344,6 +344,24 @@ app.get('/api/books/:id/view', async (req, res) => {
 });
 
 // Reading Progress API endpoints
+app.get('/api/progress/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const progress = await database.getAllProgressForUser(username);
+    res.json({
+      success: true,
+      progress: progress
+    });
+  } catch (error) {
+    console.error('Error fetching all progress for user:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch progress',
+      message: error.message
+    });
+  }
+});
+
 app.get('/api/progress/:username/:bookId', async (req, res) => {
   try {
     const { username, bookId } = req.params;

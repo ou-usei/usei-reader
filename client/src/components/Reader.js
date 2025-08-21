@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ePub from 'epubjs';
+import TocItem from './TocItem'; // Import the new component
 import './Reader.css';
 
 // Debounce function to limit how often a function is called
@@ -22,26 +23,47 @@ const Reader = ({ book, currentUser, onBack }) => {
   const [fontSize, setFontSize] = useState(100);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [currentTocHref, setCurrentTocHref] = useState('');
+
+  // --- Robust Chapter Finder ---
+  const findChapter = useCallback((tocItems, href) => {
+    if (!tocItems || !href) return null;
+    const cleanHref = href.split('#')[0];
+    let bestMatch = null;
+
+    const search = (items) => {
+      for (const item of items) {
+        const itemHref = item.href.split('#')[0];
+        if (cleanHref.endsWith(itemHref)) {
+          if (!bestMatch || itemHref.length > bestMatch.href.split('#')[0].length) {
+            bestMatch = item;
+          }
+        }
+        if (item.subitems) {
+          search(item.subitems);
+        }
+      }
+    };
+    search(tocItems);
+    return bestMatch;
+  }, []);
 
   // --- Progress Saving Logic ---
   const saveProgress = useCallback(debounce(async (cfi) => {
     if (!currentUser || !book) return;
-
     try {
       await fetch(`/api/progress/${currentUser.username}/${book.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentCfi: cfi })
       });
-      console.log(`Progress saved for ${currentUser.displayName}: ${cfi}`);
     } catch (err) {
       console.error('Failed to save progress:', err);
     }
-  }, 2000), [currentUser, book]); // Update every 2 seconds
+  }, 2000), [currentUser, book]);
 
   useEffect(() => {
     if (!book || !viewerRef.current) return;
-
     let isMounted = true;
 
     const loadBook = async () => {
@@ -51,14 +73,12 @@ const Reader = ({ book, currentUser, onBack }) => {
           setError('');
           setToc([]);
         }
-        
         if (viewerRef.current) viewerRef.current.innerHTML = '';
 
         const bookUrl = `/api/books/${book.id}/view`;
         const response = await fetch(bookUrl);
         if (!response.ok) throw new Error(`Failed to fetch book: ${response.statusText}`);
         const arrayBuffer = await response.arrayBuffer();
-
         if (!isMounted) return;
 
         const epubBook = ePub(arrayBuffer, { allowScriptedContent: true });
@@ -74,11 +94,11 @@ const Reader = ({ book, currentUser, onBack }) => {
         
         await epubBook.ready;
         const nav = await epubBook.loaded.navigation;
+        const fullToc = nav.toc;
         
         if (isMounted) {
-          setToc(nav.toc);
+          setToc(fullToc);
 
-          // --- Fetch and Apply Progress ---
           let initialLocation = undefined;
           if (currentUser) {
             try {
@@ -86,7 +106,6 @@ const Reader = ({ book, currentUser, onBack }) => {
               const progressData = await progressRes.json();
               if (progressData.success && progressData.progress?.current_cfi) {
                 initialLocation = progressData.progress.current_cfi;
-                console.log(`Progress loaded for ${currentUser.displayName}:`, initialLocation);
               }
             } catch (err) {
               console.error('Failed to load progress:', err);
@@ -95,14 +114,21 @@ const Reader = ({ book, currentUser, onBack }) => {
 
           rendition.on('relocated', (locationData) => {
             if (isMounted) {
-              const chapter = epubBook.navigation.get(locationData.start.href);
+              const chapter = findChapter(fullToc, locationData.start.href);
               setLocation(chapter ? chapter.label.trim() : '...');
-              // Save progress whenever location changes
+              const cleanHref = locationData.start.href.split('#')[0];
+              setCurrentTocHref(cleanHref);
               saveProgress(locationData.start.cfi);
             }
           });
 
-          await rendition.display(initialLocation);
+          const displayed = await rendition.display(initialLocation);
+          const currentLocation = rendition.currentLocation();
+          const initialChapter = findChapter(fullToc, currentLocation.start.href);
+          if (isMounted) {
+            setLocation(initialChapter ? initialChapter.label.trim() : '...');
+            setCurrentTocHref(currentLocation.start.href.split('#')[0]);
+          }
           
           const viewerElement = viewerRef.current;
           if (viewerElement) {
@@ -112,7 +138,6 @@ const Reader = ({ book, currentUser, onBack }) => {
           rendition.themes.fontSize(`${fontSize}%`);
           setIsLoading(false);
         }
-
       } catch (err) {
         if (isMounted) {
           console.error("Error loading book:", err);
@@ -123,14 +148,11 @@ const Reader = ({ book, currentUser, onBack }) => {
     };
 
     loadBook();
-
     return () => {
       isMounted = false;
-      if (bookRef.current) {
-        bookRef.current.destroy();
-      }
+      if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, saveProgress]);
+  }, [book, currentUser, saveProgress, findChapter]);
 
   useEffect(() => {
     if (renditionRef.current && !isLoading) {
@@ -166,9 +188,6 @@ const Reader = ({ book, currentUser, onBack }) => {
           <span>{fontSize}%</span>
           <button onClick={() => changeFontSize(10)} disabled={isLoading}>A+</button>
         </div>
-        <button className="toc-toggle-button" onClick={() => setIsTocVisible(!isTocVisible)}>
-          {isTocVisible ? '隐藏目录' : '显示目录'}
-        </button>
       </div>
 
       <div className="reader-main">
@@ -177,9 +196,12 @@ const Reader = ({ book, currentUser, onBack }) => {
           {isLoading ? <p>加载中...</p> : (
             <ul className="toc-list">
               {toc.map((item, index) => (
-                <li key={index}>
-                  <button onClick={() => handleTocClick(item.href)}>{item.label}</button>
-                </li>
+                <TocItem 
+                  key={index} 
+                  item={item} 
+                  onTocClick={handleTocClick} 
+                  currentTocHref={currentTocHref} 
+                />
               ))}
             </ul>
           )}
