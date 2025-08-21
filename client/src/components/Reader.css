@@ -1,0 +1,173 @@
+.reader-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  background-color: #f0f0f0;
+}
+
+.reader-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background-color: #fff;
+  border-bottom: 1px solid #ddd;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.back-button, .toc-toggle-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.back-button:hover, .toc-toggle-button:hover {
+  background: #0056b3;
+}
+
+.book-title-header {
+  text-align: center;
+  flex-grow: 1;
+}
+.book-title-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+}
+.book-title-header span {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.reader-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reader-settings button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+
+.reader-main {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.toc-panel {
+  width: 250px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+  transition: transform 0.3s ease, width 0.3s ease;
+  padding: 10px;
+}
+.toc-panel.visible {
+  transform: translateX(0);
+}
+.toc-panel h3 {
+  margin-top: 0;
+  text-align: center;
+}
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.toc-list li button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.toc-list li button:hover {
+  background-color: #e9ecef;
+}
+
+.viewer-wrapper {
+  flex-grow: 1;
+  position: relative;
+  /* Center the fixed-size viewer */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden; /* Hide anything outside the wrapper */
+  background-color: #e0e0e0; /* Add a background to the wrapper area */
+}
+
+#viewer {
+  /* Fixed size for stability */
+  width: 800px;
+  height: 95%; /* Take most of the vertical space */
+  background: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  /* CRITICAL FIX: Prevent the epub content from overflowing its container */
+  overflow: hidden;
+}
+
+.nav-button {
+  /* Adjust nav buttons to be relative to the centered viewer, not the whole wrapper */
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: rgba(0, 0, 0, 0.2);
+  color: white;
+  border: none;
+  font-size: 2.5em;
+  cursor: pointer;
+  height: 100px; /* Fixed height for buttons */
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+.nav-button:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+.nav-button.prev {
+  left: 0;
+}
+.nav-button.next {
+  right: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .reader-header {
+    padding: 10px;
+  }
+  .book-title-header h2 {
+    font-size: 1em;
+  }
+  .reader-settings {
+    display: none; /* Hide settings on small screens for simplicity */
+  }
+  .toc-panel {
+    position: absolute;
+    top: 60px; /* Below header */
+    left: 0;
+    bottom: 0;
+    width: 80%;
+    z-index: 1000;
+    transform: translateX(-100%);
+    border-right: 2px solid #ccc;
+  }
+  .toc-toggle-button {
+    order: -1; /* Move to the start */
+  }
+}

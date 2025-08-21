@@ -1,0 +1,25 @@
+{
+  "name": "epub-reader-server",
+  "version": "1.0.0",
+  "description": "Backend server for epub reader demo",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "db:init": "node database/init.js",
+    "db:reset": "node database/init.js reset",
+    "db:test": "node database/test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "form-data": "^4.0.4",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
+    "path": "^0.12.7",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

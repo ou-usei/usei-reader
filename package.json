@@ -1,0 +1,15 @@
+{
+  "name": "epub-reader-demo",
+  "version": "1.0.0",
+  "description": "Demo version of epub reader with basic functionality",
+  "scripts": {
+    "setup": "npm install && cd client && npm install && cd ../server && npm install",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm start",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
