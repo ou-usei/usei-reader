@@ -126,9 +126,9 @@ function Dashboard({
                       className={`flex-1 ${hasProgress ? 'bg-green-600 hover:bg-green-700' : ''}`}
                       variant={hasProgress ? 'default' : 'secondary'}
                     >
-                      {hasProgress ? 'Continue Reading' : 'Start Reading'}
+                      {hasProgress ? '继续阅读' : '开始阅读'}
                     </Button>
-                    <Button onClick={() => onShowDetails(book)} variant="outline" className="flex-1">Details</Button>
+                    <Button onClick={() => onShowDetails(book)} variant="outline" className="flex-1">详情</Button>
                   </div>
                 </div>
               );

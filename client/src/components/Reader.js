@@ -178,6 +178,9 @@ const Reader = ({ book, currentUser, onBack }) => {
     <div className="reader-container">
       <div className="reader-header">
         <button className="back-button" onClick={onBack}>← 返回书库</button>
+        <button className="toc-toggle-button" onClick={() => setIsTocVisible(!isTocVisible)}>
+          {isTocVisible ? '隐藏目录' : '目录'}
+        </button>
         <div className="book-title-header">
           <h2>{book.title}</h2>
           <span>{isLoading ? '加载中...' : error || location}</span>

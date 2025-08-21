@@ -31,6 +31,10 @@
   background: #0056b3;
 }
 
+.toc-toggle-button {
+  display: none; /* Hidden by default on larger screens */
+}
+
 .book-title-header {
   text-align: center;
   flex-grow: 1;
@@ -169,5 +173,6 @@
   }
   .toc-toggle-button {
     order: -1; /* Move to the start */
+    display: inline-block; /* Show on small screens */
   }
 }
