@@ -1,8 +1,8 @@
 @import './SelectionMenu.css';
 
 .reader-container {
-  display: flex;
-  flex-direction: column;
+  display: grid; /* Use Grid layout */
+  grid-template-rows: auto 1fr; /* Header gets auto height, main content takes the rest */
   height: 100vh;
   width: 100%;
   background-color: #f0f0f0;
@@ -12,15 +12,32 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
+  padding: 10px; /* Reduced padding for smaller screens */
   background-color: #fff;
   border-bottom: 1px solid #ddd;
-  flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* Enforce single line */
   gap: 10px;
+  grid-row: 1; /* Explicitly place in the first grid row */
 }
 
-.back-button, .toc-toggle-button {
+.back-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0; /* Prevent buttons from shrinking */
+  /* Make it a compact circle icon */
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 1.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toc-toggle-button {
   background: #007bff;
   color: white;
   border: none;
@@ -28,7 +45,9 @@
   border-radius: 5px;
   cursor: pointer;
   font-size: 14px;
+  flex-shrink: 0; /* Prevent buttons from shrinking */
 }
+
 .back-button:hover, .toc-toggle-button:hover {
   background: #0056b3;
 }
@@ -40,20 +59,28 @@
 .book-title-header {
   text-align: center;
   flex-grow: 1;
+  min-width: 0; /* Allow title to shrink */
 }
 .book-title-header h2 {
   margin: 0;
-  font-size: 1.2em;
+  font-size: 1.1em; /* Slightly smaller font for title */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* Add ellipsis for long titles */
 }
 .book-title-header span {
-  font-size: 0.9em;
+  font-size: 0.8em;
   color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .reader-settings {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px; /* Reduced gap */
+  flex-shrink: 0; /* Prevent settings from shrinking */
 }
 .reader-settings button {
   width: 30px;
@@ -62,12 +89,24 @@
   border: 1px solid #ccc;
   background: #fff;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
+
+.highlight-mode-button.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #0056b3;
+}
+
 
 .reader-main {
   display: flex;
-  flex-grow: 1;
   overflow: hidden;
+  grid-row: 2; /* Explicitly place in the second grid row */
+  position: relative; /* Crucial for child absolute positioning */
 }
 
 .toc-panel {
@@ -152,20 +191,20 @@
   right: 0;
 }
 
-/* Mobile adjustments */
+/* Mobile-specific adjustments */
+@media (max-width: 480px) { 
+  .book-title-header {
+    display: none; /* Hide title on very narrow screens */
+  }
+  .toc-toggle-button {
+    display: inline-block; /* Show on small screens */
+  }
+}
+
 @media (max-width: 768px) {
-  .reader-header {
-    padding: 10px;
-  }
-  .book-title-header h2 {
-    font-size: 1em;
-  }
-  .reader-settings {
-    display: none; /* Hide settings on small screens for simplicity */
-  }
   .toc-panel {
     position: absolute;
-    top: 60px; /* Below header */
+    top: 0; /* Align to the top of reader-main */
     left: 0;
     bottom: 0;
     width: 80%;
@@ -174,7 +213,6 @@
     border-right: 2px solid #ccc;
   }
   .toc-toggle-button {
-    order: -1; /* Move to the start */
     display: inline-block; /* Show on small screens */
   }
 }
