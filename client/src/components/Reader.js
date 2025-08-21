@@ -215,7 +215,7 @@ const Reader = ({ book, currentUser, onBack }) => {
           });
 
           // --- Show selection menu logic ---
-          rendition.on('selected', (cfiRange, contents) => {
+          const showSelectionMenu = (cfiRange, contents) => {
             const selection = contents.window.getSelection();
             if (selection && !selection.isCollapsed) {
               const range = selection.getRangeAt(0);
@@ -236,6 +236,28 @@ const Reader = ({ book, currentUser, onBack }) => {
                 cfiRange: cfiRange,
               });
             }
+          };
+
+          // For Desktop (mouse events)
+          rendition.on('selected', (cfiRange, contents) => {
+            showSelectionMenu(cfiRange, contents);
+          });
+
+          // For Mobile (touch events)
+          rendition.on('rendered', (section) => {
+            const iframeDoc = section.document;
+            iframeDoc.addEventListener('touchend', () => {
+              setTimeout(() => {
+                const selection = iframeDoc.getSelection();
+                if (selection && !selection.isCollapsed) {
+                  const cfiRange = rendition.currentLocation().start.cfi;
+                  // Note: This CFI range from currentLocation might not be perfectly accurate
+                  // for the selection, but it's the best we can get easily on touchend.
+                  // For a more precise CFI, a more complex range calculation would be needed.
+                  showSelectionMenu(cfiRange, { window: iframeDoc.defaultView });
+                }
+              }, 100); // A small delay to allow the selection to finalize
+            });
           });
 
           // Add click listener to the parent document to hide the menu
