@@ -309,9 +309,10 @@ app.get('/api/books/:id/view', async (req, res) => {
 });
 
 // Reading Progress API endpoints
-app.get('/api/progress/:bookId', async (req, res) => {
+app.get('/api/progress/:username/:bookId', async (req, res) => {
   try {
-    const progress = await database.getProgress(req.params.bookId);
+    const { username, bookId } = req.params;
+    const progress = await database.getProgress(username, bookId);
     res.json({
       success: true,
       progress: progress
@@ -326,11 +327,21 @@ app.get('/api/progress/:bookId', async (req, res) => {
   }
 });
 
-app.post('/api/progress/:bookId', async (req, res) => {
+app.post('/api/progress/:username/:bookId', async (req, res) => {
   try {
+    const { username, bookId } = req.params;
     const { currentCfi, progressPercentage } = req.body;
+    
+    if (!currentCfi && progressPercentage === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing progress data (currentCfi or progressPercentage)'
+      });
+    }
+
     const progress = await database.saveProgress(
-      req.params.bookId,
+      username,
+      bookId,
       currentCfi,
       progressPercentage
     );

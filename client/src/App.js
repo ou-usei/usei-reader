@@ -136,7 +136,7 @@ function App() {
 
   // If a book is selected, render the Reader component
   if (selectedBook) {
-    return <Reader book={selectedBook} onBack={() => setSelectedBook(null)} />;
+    return <Reader book={selectedBook} currentUser={currentUser} onBack={() => setSelectedBook(null)} />;
   }
 
   // Otherwise, render the main library view

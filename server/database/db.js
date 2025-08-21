@@ -38,12 +38,13 @@ class Database {
     // Create reading_progress table
     this.db.run(`
       CREATE TABLE IF NOT EXISTS reading_progress (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        book_id INTEGER,
+        username TEXT NOT NULL,
+        book_id INTEGER NOT NULL,
         current_cfi TEXT,
         progress_percentage REAL DEFAULT 0,
         last_read_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (book_id) REFERENCES books (id)
+        PRIMARY KEY (username, book_id),
+        FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
       )
     `, (err) => {
       if (err) {
@@ -134,48 +135,33 @@ class Database {
   }
 
   // Reading Progress CRUD operations
-  saveProgress(bookId, currentCfi, progressPercentage) {
+  saveProgress(username, bookId, currentCfi, progressPercentage) {
     return new Promise((resolve, reject) => {
-      // First check if progress exists for this book
-      this.db.get('SELECT id FROM reading_progress WHERE book_id = ?', [bookId], (err, row) => {
+      // Use INSERT OR REPLACE (UPSERT) to simplify logic
+      const stmt = this.db.prepare(`
+        INSERT INTO reading_progress (username, book_id, current_cfi, progress_percentage, last_read_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(username, book_id) DO UPDATE SET
+          current_cfi = excluded.current_cfi,
+          progress_percentage = excluded.progress_percentage,
+          last_read_at = CURRENT_TIMESTAMP
+      `);
+      
+      stmt.run([username, bookId, currentCfi, progressPercentage], function(err) {
         if (err) {
           reject(err);
-          return;
-        }
-
-        if (row) {
-          // Update existing progress
-          this.db.run(`
-            UPDATE reading_progress 
-            SET current_cfi = ?, progress_percentage = ?, last_read_at = CURRENT_TIMESTAMP
-            WHERE book_id = ?
-          `, [currentCfi, progressPercentage, bookId], function(err) {
-            if (err) {
-              reject(err);
-            } else {
-              resolve({ id: row.id, bookId, currentCfi, progressPercentage });
-            }
-          });
         } else {
-          // Create new progress record
-          this.db.run(`
-            INSERT INTO reading_progress (book_id, current_cfi, progress_percentage)
-            VALUES (?, ?, ?)
-          `, [bookId, currentCfi, progressPercentage], function(err) {
-            if (err) {
-              reject(err);
-            } else {
-              resolve({ id: this.lastID, bookId, currentCfi, progressPercentage });
-            }
-          });
+          resolve({ changes: this.changes });
         }
       });
+      
+      stmt.finalize();
     });
   }
 
-  getProgress(bookId) {
+  getProgress(username, bookId) {
     return new Promise((resolve, reject) => {
-      this.db.get('SELECT * FROM reading_progress WHERE book_id = ?', [bookId], (err, row) => {
+      this.db.get('SELECT * FROM reading_progress WHERE username = ? AND book_id = ?', [username, bookId], (err, row) => {
         if (err) {
           reject(err);
         } else {
