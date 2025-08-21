@@ -17,7 +17,7 @@ const BookDetails = ({ book, onBack, onDelete }) => {
   return (
     <div className="book-details-container">
       <div className="book-details-header">
-        <button className="back-button" onClick={onBack}>← 返回书库</button>
+        <button className="back-button" onClick={onBack}>←</button>
         <h1>{book.title}</h1>
       </div>
       <div className="book-details-content">

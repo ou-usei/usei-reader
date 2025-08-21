@@ -3,12 +3,10 @@ import { Button } from "../components/ui/button";
 
 function Dashboard({
   books,
-  users,
   currentUser,
   progressData,
   uploadMessage,
   setUploadMessage,
-  onUserChange,
   onReadBook,
   onShowDetails,
   refreshBooks
@@ -64,15 +62,10 @@ function Dashboard({
           <p className="text-gray-500 dark:text-gray-400">Manage your e-book library.</p>
         </div>
         {currentUser && (
-          <div className="flex items-center space-x-2">
-            <span className="font-medium">Current User:</span>
-            <select onChange={onUserChange} value={currentUser.username} className="p-2 border rounded-md bg-white dark:bg-gray-700">
-              {users.map(user => (
-                <option key={user.username} value={user.username}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
+          <div>
+            <h2 className="text-xl font-semibold text-right">
+              Welcome, {currentUser.displayName}
+            </h2>
           </div>
         )}
       </header>

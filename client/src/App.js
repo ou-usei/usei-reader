@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Reader from './components/Reader';
 import BookDetails from './components/BookDetails';
+import Settings from './pages/Settings'; // Import the new Settings component
 
 function App() {
   // State for app status and data
@@ -13,7 +14,7 @@ function App() {
   const [uploadMessage, setUploadMessage] = useState('');
 
   // State for navigation/views
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'reader', 'details'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'reader', 'details', 'settings'
   const [selectedBook, setSelectedBook] = useState(null);
 
   // --- DATA FETCHING ---
@@ -117,35 +118,44 @@ function App() {
     }
   };
 
+  const handleNavigate = (page) => {
+    setView(page);
+  };
+
   // --- RENDER LOGIC ---
 
-  if (view === 'reader' && selectedBook) {
-    return <Reader book={selectedBook} currentUser={currentUser} onBack={handleBackToDashboard} />;
-  }
+  const renderContent = () => {
+    switch (view) {
+      case 'reader':
+        return selectedBook ? <Reader book={selectedBook} currentUser={currentUser} onBack={handleBackToDashboard} /> : null;
+      case 'details':
+        return selectedBook ? <BookDetails book={selectedBook} onBack={handleBackToDashboard} onDelete={handleDeleteBook} /> : null;
+      case 'settings':
+        return <Settings users={users} currentUser={currentUser} onUserChange={handleUserChange} />;
+      case 'dashboard':
+      default:
+        return (
+          <Dashboard
+            books={books}
+            currentUser={currentUser}
+            progressData={progressData}
+            uploadMessage={uploadMessage}
+            setUploadMessage={setUploadMessage}
+            onReadBook={handleSelectBookForReading}
+            onShowDetails={handleSelectBookForDetails}
+            refreshBooks={loadBooks}
+          />
+        );
+    }
+  };
 
-  if (view === 'details' && selectedBook) {
-    return (
-      <Layout>
-        <BookDetails book={selectedBook} onBack={handleBackToDashboard} onDelete={handleDeleteBook} />
-      </Layout>
-    );
+  if (view === 'reader') {
+    return renderContent();
   }
 
   return (
-    <Layout>
-      <Dashboard
-        books={books}
-        users={users}
-        currentUser={currentUser}
-        progressData={progressData}
-        uploadMessage={uploadMessage}
-        setUploadMessage={setUploadMessage}
-        onUserChange={handleUserChange}
-        onDeleteBook={handleDeleteBook}
-        onReadBook={handleSelectBookForReading}
-        onShowDetails={handleSelectBookForDetails}
-        refreshBooks={loadBooks}
-      />
+    <Layout currentPage={view} onNavigate={handleNavigate}>
+      {renderContent()}
     </Layout>
   );
 }

@@ -22,8 +22,22 @@ const Reader = ({ book, currentUser, onBack }) => {
 
   const [toc, setToc] = useState([]);
   const [location, setLocation] = useState('Loading...');
-  const [isTocVisible, setIsTocVisible] = useState(true);
-  const [fontSize, setFontSize] = useState(100);
+  const [isTocVisible, setIsTocVisible] = useState(false); // Default to hidden
+  // Initialize font size from localStorage with robust error handling
+  const [fontSize, setFontSize] = useState(() => {
+    try {
+      const savedSize = localStorage.getItem('epubReaderFontSize');
+      const parsedSize = parseInt(savedSize, 10);
+      // Check if parsedSize is a valid number within our bounds
+      if (!isNaN(parsedSize) && parsedSize >= 80 && parsedSize <= 200) {
+        return parsedSize;
+      }
+    } catch (error) {
+      console.error("Failed to read font size from localStorage", error);
+    }
+    // Return default if anything goes wrong
+    return 100;
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentTocHref, setCurrentTocHref] = useState('');
@@ -279,6 +293,16 @@ const Reader = ({ book, currentUser, onBack }) => {
     };
   }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu, applyHighlight, isHighlightMode]);
 
+  // Save font size to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('epubReaderFontSize', fontSize.toString());
+    } catch (error) {
+      console.error("Failed to save font size to localStorage", error);
+    }
+  }, [fontSize]);
+
+  // Apply font size to rendition when it changes or when loading finishes
   useEffect(() => {
     if (renditionRef.current && !isLoading) {
       renditionRef.current.themes.fontSize(`${fontSize}%`);

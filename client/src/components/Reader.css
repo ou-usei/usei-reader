@@ -21,9 +21,9 @@
 }
 
 .back-button {
-  background: #007bff;
-  color: white;
-  border: none;
+  background: transparent;
+  color: #333;
+  border: 1px solid #ccc;
   cursor: pointer;
   flex-shrink: 0; /* Prevent buttons from shrinking */
   /* Make it a compact circle icon */
@@ -35,21 +35,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .toc-toggle-button {
-  background: #007bff;
-  color: white;
-  border: none;
+  background: #f0f0f0; /* Grey background */
+  color: #333; /* Dark text */
+  border: 1px solid #ccc;
   padding: 8px 12px;
   border-radius: 5px;
   cursor: pointer;
   font-size: 14px;
   flex-shrink: 0; /* Prevent buttons from shrinking */
+  transition: background-color 0.2s;
 }
 
 .back-button:hover, .toc-toggle-button:hover {
   background: #0056b3;
+  color: white;
 }
 
 .toc-toggle-button {
