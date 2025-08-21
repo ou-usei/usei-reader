@@ -217,6 +217,41 @@ app.get('/api/books/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/books/:id', async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const book = await database.getBookById(bookId);
+
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        error: 'Book not found'
+      });
+    }
+
+    // Delete the physical file
+    const filePath = path.join(uploadsDir, book.file_path);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Delete the book from the database
+    await database.deleteBook(bookId);
+
+    res.json({
+      success: true,
+      message: 'Book deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting book:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete book',
+      message: error.message
+    });
+  }
+});
+
 // File download endpoint
 app.get('/api/books/:id/file', async (req, res) => {
   try {

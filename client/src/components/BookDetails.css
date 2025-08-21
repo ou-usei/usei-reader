@@ -1,0 +1,102 @@
+.book-details-container {
+  padding: 20px;
+  max-width: 900px;
+  margin: 40px auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  color: #333;
+}
+
+.book-details-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+
+.book-details-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.back-button {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.back-button:hover {
+  background-color: #e0e0e0;
+}
+
+.book-details-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 30px;
+}
+
+@media (min-width: 768px) {
+  .book-details-content {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.book-info-panel,
+.book-actions-panel {
+  padding: 20px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+}
+
+.book-info-panel h2,
+.book-actions-panel h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  color: #555;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.book-info-panel p {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 10px 0;
+}
+
+.book-info-panel p strong {
+  color: #000;
+  margin-right: 8px;
+}
+
+.delete-button {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: white;
+  background: #dc3545;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.delete-button:hover {
+  background: #c82333;
+}
+
+.delete-warning {
+  margin-top: 15px;
+  font-size: 0.9rem;
+  color: #6c757d;
+  line-height: 1.5;
+}

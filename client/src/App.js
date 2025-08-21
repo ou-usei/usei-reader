@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import Reader from './components/Reader'; // Import the new Reader component
+import Reader from './components/Reader';
+import BookDetails from './components/BookDetails';
 import './App.css';
 
 function App() {
@@ -8,18 +9,17 @@ function App() {
   const [books, setBooks] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
-  const [selectedBook, setSelectedBook] = useState(null); // State to manage the selected book
+  const [selectedBookForReading, setSelectedBookForReading] = useState(null);
+  const [selectedBookForDetails, setSelectedBookForDetails] = useState(null);
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    // Test server connection
     fetch('/api/health')
       .then(response => response.json())
       .then(data => {
         setServerStatus('connected');
         setServerMessage(data.message || 'Server connected successfully');
-        // Load books and users after connection is confirmed
         loadBooks();
         loadUsers();
       })
@@ -47,7 +47,7 @@ function App() {
       const data = await response.json();
       if (data.success && data.users.length > 0) {
         setUsers(data.users);
-        setCurrentUser(data.users[0]); // Set the first user as the default
+        setCurrentUser(data.users[0]);
       }
     } catch (error) {
       console.error('Failed to load users:', error);
@@ -82,13 +82,11 @@ function App() {
         method: 'POST',
         body: formData
       });
-
       const result = await response.json();
-      
       if (result.success) {
         setUploadMessage(`✅ 上传成功: ${result.book.title}`);
-        loadBooks(); // Reload books list
-        event.target.value = ''; // Clear file input
+        loadBooks();
+        event.target.value = '';
       } else {
         setUploadMessage(`❌ 上传失败: ${result.error}`);
       }
@@ -99,34 +97,21 @@ function App() {
     }
   };
 
-  const handleDownload = async (bookId, filename) => {
+  const handleDeleteBook = async (bookId) => {
     try {
-      setUploadMessage(`📥 开始下载: ${filename}...`);
-      const response = await fetch(`/api/books/${bookId}/file`);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `服务器错误，状态码: ${response.status}`);
+      const response = await fetch(`/api/books/${bookId}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+      if (result.success) {
+        setUploadMessage(`✅ "${books.find(b => b.id === bookId)?.title}" 已被删除`);
+        setSelectedBookForDetails(null); // Go back to the library view
+        loadBooks(); // Refresh the book list
+      } else {
+        setUploadMessage(`❌ 删除失败: ${result.error}`);
       }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      
-      document.body.appendChild(link);
-      link.click();
-      
-      // Clean up the temporary URL and link
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(link);
-      setUploadMessage(`✅ 下载完成: ${filename}`);
-
     } catch (error) {
-      console.error('Download failed:', error);
-      setUploadMessage(`❌ 下载失败: ${error.message}`);
+      setUploadMessage(`❌ 删除错误: ${error.message}`);
     }
   };
 
@@ -134,12 +119,14 @@ function App() {
     return new Date(dateString).toLocaleString('zh-CN');
   };
 
-  // If a book is selected, render the Reader component
-  if (selectedBook) {
-    return <Reader book={selectedBook} currentUser={currentUser} onBack={() => setSelectedBook(null)} />;
+  if (selectedBookForReading) {
+    return <Reader book={selectedBookForReading} currentUser={currentUser} onBack={() => setSelectedBookForReading(null)} />;
   }
 
-  // Otherwise, render the main library view
+  if (selectedBookForDetails) {
+    return <BookDetails book={selectedBookForDetails} onBack={() => setSelectedBookForDetails(null)} onDelete={handleDeleteBook} />;
+  }
+
   return (
     <div className="App">
       <div className="container">
@@ -217,15 +204,15 @@ function App() {
                       <div className="book-actions">
                         <button 
                           className="read-btn"
-                          onClick={() => setSelectedBook(book)}
+                          onClick={() => setSelectedBookForReading(book)}
                         >
                           📖 阅读
                         </button>
                         <button 
-                          className="download-btn"
-                          onClick={() => handleDownload(book.id, book.filename)}
+                          className="details-btn"
+                          onClick={() => setSelectedBookForDetails(book)}
                         >
-                          📥 下载
+                          ⚙️ 详情
                         </button>
                       </div>
                     </div>

@@ -197,6 +197,7 @@
 }
 
 .read-btn,
+.details-btn,
 .download-btn {
   color: white;
   border: none;
@@ -206,10 +207,15 @@
   font-size: 14px;
   font-weight: 500;
   transition: all 0.3s ease;
+  flex-grow: 1;
 }
 
 .read-btn {
   background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+.details-btn {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
 }
 
 .download-btn {
@@ -217,6 +223,7 @@
 }
 
 .read-btn:hover,
+.details-btn:hover,
 .download-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 3px 6px rgba(0,0,0,0.2);
