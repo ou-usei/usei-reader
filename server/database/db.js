@@ -72,6 +72,25 @@ class Database {
         console.log('Excerpts table ready');
       }
     });
+
+    // Create highlights table
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS highlights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        book_id INTEGER NOT NULL,
+        cfi_range TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE,
+        UNIQUE(username, book_id, cfi_range)
+      )
+    `, (err) => {
+      if (err) {
+        console.error('Error creating highlights table:', err.message);
+      } else {
+        console.log('Highlights table ready');
+      }
+    });
   }
 
   getDb() {
@@ -257,6 +276,42 @@ class Database {
           resolve({ changes: this.changes });
         }
       });
+    });
+  }
+
+  // Highlights CRUD operations
+  addHighlight(username, bookId, cfiRange) {
+    return new Promise((resolve, reject) => {
+      const stmt = this.db.prepare(`
+        INSERT OR IGNORE INTO highlights (username, book_id, cfi_range)
+        VALUES (?, ?, ?)
+      `);
+      
+      stmt.run([username, bookId, cfiRange], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, changes: this.changes });
+        }
+      });
+      
+      stmt.finalize();
+    });
+  }
+
+  getHighlightsForBook(username, bookId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM highlights WHERE username = ? AND book_id = ? ORDER BY created_at ASC',
+        [username, bookId],
+        (err, rows) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(rows);
+          }
+        }
+      );
     });
   }
 

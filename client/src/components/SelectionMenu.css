@@ -1,0 +1,26 @@
+.selection-menu {
+  position: absolute;
+  background-color: #333;
+  color: white;
+  border-radius: 5px;
+  padding: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  /* Position it above the selection and centered horizontally */
+  transform: translate(-50%, -110%); 
+  transition: opacity 0.1s ease-in-out;
+  white-space: nowrap; /* Prevent buttons from wrapping */
+}
+
+.selection-menu button {
+  background: none;
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.selection-menu button:hover {
+  background-color: #555;
+}

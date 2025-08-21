@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ePub from 'epubjs';
-import TocItem from './TocItem'; // Import the new component
+import TocItem from './TocItem';
+import SelectionMenu from './SelectionMenu'; // Import the new component
 import './Reader.css';
 
 // Debounce function to limit how often a function is called
@@ -14,8 +15,10 @@ const debounce = (func, delay) => {
 
 const Reader = ({ book, currentUser, onBack }) => {
   const viewerRef = useRef(null);
+  const viewerWrapperRef = useRef(null); // Ref for the wrapper
   const bookRef = useRef(null);
   const renditionRef = useRef(null);
+  const justSelected = useRef(false); // Flag to manage click events
 
   const [toc, setToc] = useState([]);
   const [location, setLocation] = useState('Loading...');
@@ -24,6 +27,14 @@ const Reader = ({ book, currentUser, onBack }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentTocHref, setCurrentTocHref] = useState('');
+
+  // State for the selection menu
+  const [selectionMenu, setSelectionMenu] = useState({
+    visible: false,
+    top: null,
+    left: null,
+    cfiRange: null,
+  });
 
   // --- Robust Chapter Finder ---
   const findChapter = useCallback((tocItems, href) => {
@@ -62,9 +73,59 @@ const Reader = ({ book, currentUser, onBack }) => {
     }
   }, 2000), [currentUser, book]);
 
+  // --- Hide selection menu ---
+  const hideSelectionMenu = useCallback(() => {
+    setSelectionMenu(prev => ({ ...prev, visible: false, cfiRange: null }));
+  }, []);
+
+  // --- Apply Highlight ---
+  const applyHighlight = useCallback(async () => {
+    const { cfiRange } = selectionMenu;
+    if (cfiRange && renditionRef.current) {
+      try {
+        // 1. Add highlight visually
+        await renditionRef.current.annotations.add("highlight", cfiRange, {}, (e) => {
+          console.log("highlight clicked", e.target);
+        }, "epub-highlight", {});
+
+        // 2. Save highlight to the backend
+        if (currentUser && book) {
+          await fetch('/api/highlights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: currentUser.username,
+              bookId: book.id,
+              cfiRange: cfiRange,
+            }),
+          });
+        }
+        
+        // 3. Deselect text after highlighting
+        renditionRef.current.getContents().window.getSelection().removeAllRanges();
+
+      } catch (error) {
+        console.error("Error applying highlight:", error);
+      }
+    }
+    hideSelectionMenu();
+  }, [selectionMenu, hideSelectionMenu, currentUser, book]);
+
+
   useEffect(() => {
     if (!book || !viewerRef.current) return;
     let isMounted = true;
+    let rendition;
+
+    const handleDocumentClick = (e) => {
+        if (justSelected.current) {
+            justSelected.current = false;
+            return;
+        }
+        if (isMounted && !e.target.closest('.selection-menu')) {
+            hideSelectionMenu();
+        }
+    };
 
     const loadBook = async () => {
       try {
@@ -72,6 +133,7 @@ const Reader = ({ book, currentUser, onBack }) => {
           setIsLoading(true);
           setError('');
           setToc([]);
+          hideSelectionMenu();
         }
         if (viewerRef.current) viewerRef.current.innerHTML = '';
 
@@ -84,14 +146,26 @@ const Reader = ({ book, currentUser, onBack }) => {
         const epubBook = ePub(arrayBuffer, { allowScriptedContent: true });
         bookRef.current = epubBook;
 
-        const rendition = epubBook.renderTo(viewerRef.current, {
+        rendition = epubBook.renderTo(viewerRef.current, {
           width: '100%',
           height: '100%',
           flow: 'paginated',
-          spread: 'auto'
+          spread: 'none' // Force single column
         });
         renditionRef.current = rendition;
         
+        // Correctly register the theme for both selection and persistent highlights
+        rendition.themes.register("highlightTheme", {
+          "::selection": {
+            "background": "rgba(255, 255, 0, 0.3)"
+          },
+          ".epub-highlight": {
+            "background-color": "yellow",
+            "mix-blend-mode": "multiply"
+          }
+        });
+        rendition.themes.select("highlightTheme");
+
         await epubBook.ready;
         const nav = await epubBook.loaded.navigation;
         const fullToc = nav.toc;
@@ -102,18 +176,36 @@ const Reader = ({ book, currentUser, onBack }) => {
           let initialLocation = undefined;
           if (currentUser) {
             try {
-              const progressRes = await fetch(`/api/progress/${currentUser.username}/${book.id}`);
+              // Fetch both progress and highlights
+              const progressPromise = fetch(`/api/progress/${currentUser.username}/${book.id}`);
+              const highlightsPromise = fetch(`/api/highlights/${currentUser.username}/${book.id}`);
+
+              const [progressRes, highlightsRes] = await Promise.all([progressPromise, highlightsPromise]);
+
+              // Process progress
               const progressData = await progressRes.json();
               if (progressData.success && progressData.progress?.current_cfi) {
                 initialLocation = progressData.progress.current_cfi;
               }
+
+              // Process and display highlights
+              const highlightsData = await highlightsRes.json();
+              if (highlightsData.success && highlightsData.highlights) {
+                highlightsData.highlights.forEach(hl => {
+                  rendition.annotations.add("highlight", hl.cfi_range, {}, (e) => {
+                    console.log("highlight clicked", e.target);
+                  }, "epub-highlight", {});
+                });
+              }
+
             } catch (err) {
-              console.error('Failed to load progress:', err);
+              console.error('Failed to load progress or highlights:', err);
             }
           }
 
           rendition.on('relocated', (locationData) => {
             if (isMounted) {
+              hideSelectionMenu();
               const chapter = findChapter(fullToc, locationData.start.href);
               setLocation(chapter ? chapter.label.trim() : '...');
               const cleanHref = locationData.start.href.split('#')[0];
@@ -122,7 +214,35 @@ const Reader = ({ book, currentUser, onBack }) => {
             }
           });
 
-          const displayed = await rendition.display(initialLocation);
+          // --- Show selection menu logic ---
+          rendition.on('selected', (cfiRange, contents) => {
+            const selection = contents.window.getSelection();
+            if (selection && !selection.isCollapsed) {
+              const range = selection.getRangeAt(0);
+              const rect = range.getBoundingClientRect(); // Position within iframe
+              const viewerRect = viewerRef.current.getBoundingClientRect(); // Position of #viewer on main page
+              const wrapperRect = viewerWrapperRef.current.getBoundingClientRect(); // Position of #viewer-wrapper on main page
+
+              // Calculate the final position relative to the wrapper
+              const top = (viewerRect.top + rect.top) - wrapperRect.top;
+              const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
+
+              justSelected.current = true; // Set the flag
+
+              setSelectionMenu({
+                visible: true,
+                top: top,
+                left: left,
+                cfiRange: cfiRange,
+              });
+            }
+          });
+
+          // Add click listener to the parent document to hide the menu
+          document.addEventListener('click', handleDocumentClick);
+
+
+          await rendition.display(initialLocation);
           const currentLocation = rendition.currentLocation();
           const initialChapter = findChapter(fullToc, currentLocation.start.href);
           if (isMounted) {
@@ -150,9 +270,10 @@ const Reader = ({ book, currentUser, onBack }) => {
     loadBook();
     return () => {
       isMounted = false;
+      document.removeEventListener('click', handleDocumentClick);
       if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, saveProgress, findChapter]);
+  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu]);
 
   useEffect(() => {
     if (renditionRef.current && !isLoading) {
@@ -160,15 +281,23 @@ const Reader = ({ book, currentUser, onBack }) => {
     }
   }, [fontSize, isLoading]);
 
-  const handleNext = useCallback(() => renditionRef.current?.next(), []);
-  const handlePrev = useCallback(() => renditionRef.current?.prev(), []);
+  const handleNext = useCallback(() => {
+    hideSelectionMenu();
+    renditionRef.current?.next();
+  }, [hideSelectionMenu]);
+
+  const handlePrev = useCallback(() => {
+    hideSelectionMenu();
+    renditionRef.current?.prev();
+  }, [hideSelectionMenu]);
 
   const handleTocClick = useCallback((href) => {
     if (renditionRef.current) {
+      hideSelectionMenu();
       renditionRef.current.display(href);
       if (window.innerWidth < 768) setIsTocVisible(false);
     }
-  }, []);
+  }, [hideSelectionMenu]);
 
   const changeFontSize = (increment) => {
     setFontSize(prevSize => Math.max(80, Math.min(200, prevSize + increment)));
@@ -209,10 +338,19 @@ const Reader = ({ book, currentUser, onBack }) => {
             </ul>
           )}
         </div>
-        <div className="viewer-wrapper">
+        <div className="viewer-wrapper" ref={viewerWrapperRef}>
           {isLoading && <div className="loader">正在加载书籍...</div>}
           {error && <div className="error-message">{error}</div>}
           <div id="viewer" ref={viewerRef} style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}></div>
+          
+          {selectionMenu.visible && (
+            <SelectionMenu 
+              top={selectionMenu.top}
+              left={selectionMenu.left}
+              onHighlight={applyHighlight}
+            />
+          )}
+
           {!isLoading && !error && (
             <>
               <button className="nav-button prev" onClick={handlePrev}>‹</button>

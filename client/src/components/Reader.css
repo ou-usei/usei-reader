@@ -1,3 +1,5 @@
+@import './SelectionMenu.css';
+
 .reader-container {
   display: flex;
   flex-direction: column;
@@ -175,4 +177,10 @@
     order: -1; /* Move to the start */
     display: inline-block; /* Show on small screens */
   }
+}
+
+/* epub.js specific styles for highlighting */
+.epub-highlight {
+  background-color: yellow;
+  mix-blend-mode: multiply; /* Makes the highlight look more natural */
 }

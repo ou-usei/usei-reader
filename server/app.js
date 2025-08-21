@@ -465,6 +465,49 @@ app.get('/api/excerpts', async (req, res) => {
   }
 });
 
+// Highlights API Endpoints
+app.get('/api/highlights/:username/:bookId', async (req, res) => {
+  try {
+    const { username, bookId } = req.params;
+    const highlights = await database.getHighlightsForBook(username, bookId);
+    res.json({
+      success: true,
+      highlights: highlights,
+    });
+  } catch (error) {
+    console.error('Error fetching highlights:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch highlights',
+      message: error.message,
+    });
+  }
+});
+
+app.post('/api/highlights', async (req, res) => {
+  try {
+    const { username, bookId, cfiRange } = req.body;
+    if (!username || !bookId || !cfiRange) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields (username, bookId, cfiRange)',
+      });
+    }
+    const result = await database.addHighlight(username, bookId, cfiRange);
+    res.status(201).json({
+      success: true,
+      highlight: result,
+    });
+  } catch (error) {
+    console.error('Error creating highlight:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create highlight',
+      message: error.message,
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
