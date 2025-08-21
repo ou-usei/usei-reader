@@ -27,6 +27,7 @@ const Reader = ({ book, currentUser, onBack }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentTocHref, setCurrentTocHref] = useState('');
+  const [isHighlightMode, setIsHighlightMode] = useState(false); // State for highlight mode
 
   // State for the selection menu
   const [selectionMenu, setSelectionMenu] = useState({
@@ -79,37 +80,37 @@ const Reader = ({ book, currentUser, onBack }) => {
   }, []);
 
   // --- Apply Highlight ---
-  const applyHighlight = useCallback(async () => {
-    const { cfiRange } = selectionMenu;
-    if (cfiRange && renditionRef.current) {
-      try {
-        // 1. Add highlight visually
-        await renditionRef.current.annotations.add("highlight", cfiRange, {}, (e) => {
-          console.log("highlight clicked", e.target);
-        }, "epub-highlight", {});
+  const applyHighlight = useCallback(async (cfiRange) => {
+    if (!cfiRange || !renditionRef.current) return;
+    
+    try {
+      // 1. Add highlight visually
+      await renditionRef.current.annotations.add("highlight", cfiRange, {}, (e) => {
+        console.log("highlight clicked", e.target);
+      }, "epub-highlight", {});
 
-        // 2. Save highlight to the backend
-        if (currentUser && book) {
-          await fetch('/api/highlights', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: currentUser.username,
-              bookId: book.id,
-              cfiRange: cfiRange,
-            }),
-          });
-        }
-        
-        // 3. Deselect text after highlighting
-        renditionRef.current.getContents().window.getSelection().removeAllRanges();
-
-      } catch (error) {
-        console.error("Error applying highlight:", error);
+      // 2. Save highlight to the backend
+      if (currentUser && book) {
+        await fetch('/api/highlights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: currentUser.username,
+            bookId: book.id,
+            cfiRange: cfiRange,
+          }),
+        });
       }
+      
+      // 3. Deselect text after highlighting
+      renditionRef.current.getContents().window.getSelection().removeAllRanges();
+
+    } catch (error) {
+      console.error("Error applying highlight:", error);
     }
+    
     hideSelectionMenu();
-  }, [selectionMenu, hideSelectionMenu, currentUser, book]);
+  }, [currentUser, book, hideSelectionMenu]);
 
 
   useEffect(() => {
@@ -214,50 +215,31 @@ const Reader = ({ book, currentUser, onBack }) => {
             }
           });
 
-          // --- Show selection menu logic ---
-          const showSelectionMenu = (cfiRange, contents) => {
-            const selection = contents.window.getSelection();
-            if (selection && !selection.isCollapsed) {
-              const range = selection.getRangeAt(0);
-              const rect = range.getBoundingClientRect(); // Position within iframe
-              const viewerRect = viewerRef.current.getBoundingClientRect(); // Position of #viewer on main page
-              const wrapperRect = viewerWrapperRef.current.getBoundingClientRect(); // Position of #viewer-wrapper on main page
-
-              // Calculate the final position relative to the wrapper
-              const top = (viewerRect.top + rect.top) - wrapperRect.top;
-              const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
-
-              justSelected.current = true; // Set the flag
-
-              setSelectionMenu({
-                visible: true,
-                top: top,
-                left: left,
-                cfiRange: cfiRange,
-              });
-            }
-          };
-
-          // For Desktop (mouse events)
+          // --- Main Selection Logic ---
           rendition.on('selected', (cfiRange, contents) => {
-            showSelectionMenu(cfiRange, contents);
-          });
+            if (isHighlightMode) {
+              applyHighlight(cfiRange);
+            } else {
+              const selection = contents.window.getSelection();
+              if (selection && !selection.isCollapsed) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                const viewerRect = viewerRef.current.getBoundingClientRect();
+                const wrapperRect = viewerWrapperRef.current.getBoundingClientRect();
 
-          // For Mobile (touch events)
-          rendition.on('rendered', (section) => {
-            const iframeDoc = section.document;
-            iframeDoc.addEventListener('touchend', () => {
-              setTimeout(() => {
-                const selection = iframeDoc.getSelection();
-                if (selection && !selection.isCollapsed) {
-                  const cfiRange = rendition.currentLocation().start.cfi;
-                  // Note: This CFI range from currentLocation might not be perfectly accurate
-                  // for the selection, but it's the best we can get easily on touchend.
-                  // For a more precise CFI, a more complex range calculation would be needed.
-                  showSelectionMenu(cfiRange, { window: iframeDoc.defaultView });
-                }
-              }, 100); // A small delay to allow the selection to finalize
-            });
+                const top = (viewerRect.top + rect.top) - wrapperRect.top;
+                const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
+
+                justSelected.current = true;
+
+                setSelectionMenu({
+                  visible: true,
+                  top: top,
+                  left: left,
+                  cfiRange: cfiRange,
+                });
+              }
+            }
           });
 
           // Add click listener to the parent document to hide the menu
@@ -295,7 +277,7 @@ const Reader = ({ book, currentUser, onBack }) => {
       document.removeEventListener('click', handleDocumentClick);
       if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu]);
+  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu, applyHighlight, isHighlightMode]);
 
   useEffect(() => {
     if (renditionRef.current && !isLoading) {
@@ -328,7 +310,9 @@ const Reader = ({ book, currentUser, onBack }) => {
   return (
     <div className="reader-container">
       <div className="reader-header">
-        <button className="back-button" onClick={onBack}>← 返回书库</button>
+        <button className="back-button" onClick={onBack} title="返回书库">
+          ←
+        </button>
         <button className="toc-toggle-button" onClick={() => setIsTocVisible(!isTocVisible)}>
           {isTocVisible ? '隐藏目录' : '目录'}
         </button>
@@ -337,6 +321,13 @@ const Reader = ({ book, currentUser, onBack }) => {
           <span>{isLoading ? '加载中...' : error || location}</span>
         </div>
         <div className="reader-settings">
+          <button 
+            className={`highlight-mode-button ${isHighlightMode ? 'active' : ''}`}
+            onClick={() => setIsHighlightMode(!isHighlightMode)}
+            title="高亮模式"
+          >
+            ✏️
+          </button>
           <span>字体:</span>
           <button onClick={() => changeFontSize(-10)} disabled={isLoading}>A-</button>
           <span>{fontSize}%</span>
@@ -369,7 +360,7 @@ const Reader = ({ book, currentUser, onBack }) => {
             <SelectionMenu 
               top={selectionMenu.top}
               left={selectionMenu.left}
-              onHighlight={applyHighlight}
+              onHighlight={() => applyHighlight(selectionMenu.cfiRange)}
             />
           )}
 
