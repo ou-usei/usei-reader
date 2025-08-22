@@ -1,0 +1,8 @@
+# Ignore the local node_modules directory
+node_modules
+
+# Ignore npm debug logs
+npm-debug.log
+
+# Ignore environment files, as they should be passed in securely
+.env
