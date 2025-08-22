@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ePub from 'epubjs';
+import { Inbox } from 'lucide-react'; // Import the new icon
 import TocItem from './TocItem';
-import SelectionMenu from './SelectionMenu'; // Import the new component
+import SelectionMenu from './SelectionMenu';
+import HighlightDialog from './HighlightDialog'; // Import the new dialog component
 import './Reader.css';
+
+// iPad detection
+const isIPad = /iPad/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 // Debounce function to limit how often a function is called
 const debounce = (func, delay) => {
@@ -23,27 +28,23 @@ const Reader = ({ book, currentUser, onBack }) => {
   const [toc, setToc] = useState([]);
   const [location, setLocation] = useState('Loading...');
   const [isTocVisible, setIsTocVisible] = useState(false); // Default to hidden
-  // Initialize font size from localStorage with robust error handling
   const [fontSize, setFontSize] = useState(() => {
     try {
       const savedSize = localStorage.getItem('epubReaderFontSize');
       const parsedSize = parseInt(savedSize, 10);
-      // Check if parsedSize is a valid number within our bounds
       if (!isNaN(parsedSize) && parsedSize >= 80 && parsedSize <= 200) {
         return parsedSize;
       }
     } catch (error) {
       console.error("Failed to read font size from localStorage", error);
     }
-    // Return default if anything goes wrong
     return 100;
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentTocHref, setCurrentTocHref] = useState('');
-  const [isHighlightMode, setIsHighlightMode] = useState(false); // State for highlight mode
 
-  // State for the selection menu
+  // State for the pop-up selection menu (non-iPad)
   const [selectionMenu, setSelectionMenu] = useState({
     visible: false,
     top: null,
@@ -51,12 +52,14 @@ const Reader = ({ book, currentUser, onBack }) => {
     cfiRange: null,
   });
 
+  // State for the highlight dialog (iPad)
+  const [isHighlightDialogVisible, setIsHighlightDialogVisible] = useState(false);
+
   // --- Robust Chapter Finder ---
   const findChapter = useCallback((tocItems, href) => {
     if (!tocItems || !href) return null;
     const cleanHref = href.split('#')[0];
     let bestMatch = null;
-
     const search = (items) => {
       for (const item of items) {
         const itemHref = item.href.split('#')[0];
@@ -96,14 +99,10 @@ const Reader = ({ book, currentUser, onBack }) => {
   // --- Apply Highlight ---
   const applyHighlight = useCallback(async (cfiRange) => {
     if (!cfiRange || !renditionRef.current) return;
-    
     try {
-      // 1. Add highlight visually
       await renditionRef.current.annotations.add("highlight", cfiRange, {}, (e) => {
         console.log("highlight clicked", e.target);
       }, "epub-highlight", {});
-
-      // 2. Save highlight to the backend
       if (currentUser && book) {
         await fetch('/api/highlights', {
           method: 'POST',
@@ -115,17 +114,45 @@ const Reader = ({ book, currentUser, onBack }) => {
           }),
         });
       }
-      
-      // 3. Deselect text after highlighting
-      renditionRef.current.getContents().window.getSelection().removeAllRanges();
-
+      if (renditionRef.current.getContents()) {
+        renditionRef.current.getContents().window.getSelection().removeAllRanges();
+      }
     } catch (error) {
       console.error("Error applying highlight:", error);
     }
-    
     hideSelectionMenu();
   }, [currentUser, book, hideSelectionMenu]);
 
+  // --- Search and Highlight (for iPad) ---
+  const handleSearchAndHighlight = useCallback(async (text) => {
+    setIsHighlightDialogVisible(false);
+    if (!text || !bookRef.current) return;
+
+    try {
+      // Search all sections of the book
+      const results = await Promise.all(
+        bookRef.current.spine.spineItems.map(item => {
+          return item.load(bookRef.current.load.bind(bookRef.current))
+            .then(doc => item.find(text))
+            .finally(item.unload.bind(item));
+        })
+      );
+      
+      const flattenedResults = [].concat.apply([], results);
+
+      if (flattenedResults.length > 0) {
+        const firstResultCfi = flattenedResults[0].cfi;
+        await applyHighlight(firstResultCfi);
+        // Optional: navigate to the highlight
+        renditionRef.current.display(firstResultCfi);
+      } else {
+        alert('在当前书籍中未找到匹配的文本。');
+      }
+    } catch (error) {
+      console.error("Error during search and highlight:", error);
+      alert('搜索高亮时发生错误。');
+    }
+  }, [applyHighlight]);
 
   useEffect(() => {
     if (!book || !viewerRef.current) return;
@@ -133,13 +160,13 @@ const Reader = ({ book, currentUser, onBack }) => {
     let rendition;
 
     const handleDocumentClick = (e) => {
-        if (justSelected.current) {
-            justSelected.current = false;
-            return;
-        }
-        if (isMounted && !e.target.closest('.selection-menu')) {
-            hideSelectionMenu();
-        }
+      if (justSelected.current) {
+        justSelected.current = false;
+        return;
+      }
+      if (isMounted && !e.target.closest('.selection-menu')) {
+        hideSelectionMenu();
+      }
     };
 
     const loadBook = async () => {
@@ -165,19 +192,13 @@ const Reader = ({ book, currentUser, onBack }) => {
           width: '100%',
           height: '100%',
           flow: 'paginated',
-          spread: 'none' // Force single column
+          spread: 'none'
         });
         renditionRef.current = rendition;
         
-        // Correctly register the theme for both selection and persistent highlights
         rendition.themes.register("highlightTheme", {
-          "::selection": {
-            "background": "rgba(255, 255, 0, 0.3)"
-          },
-          ".epub-highlight": {
-            "background-color": "yellow",
-            "mix-blend-mode": "multiply"
-          }
+          "::selection": { "background": "rgba(255, 255, 0, 0.3)" },
+          ".epub-highlight": { "background-color": "yellow", "mix-blend-mode": "multiply" }
         });
         rendition.themes.select("highlightTheme");
 
@@ -191,19 +212,14 @@ const Reader = ({ book, currentUser, onBack }) => {
           let initialLocation = undefined;
           if (currentUser) {
             try {
-              // Fetch both progress and highlights
-              const progressPromise = fetch(`/api/progress/${currentUser.username}/${book.id}`);
-              const highlightsPromise = fetch(`/api/highlights/${currentUser.username}/${book.id}`);
-
-              const [progressRes, highlightsRes] = await Promise.all([progressPromise, highlightsPromise]);
-
-              // Process progress
+              const [progressRes, highlightsRes] = await Promise.all([
+                fetch(`/api/progress/${currentUser.username}/${book.id}`),
+                fetch(`/api/highlights/${currentUser.username}/${book.id}`)
+              ]);
               const progressData = await progressRes.json();
               if (progressData.success && progressData.progress?.current_cfi) {
                 initialLocation = progressData.progress.current_cfi;
               }
-
-              // Process and display highlights
               const highlightsData = await highlightsRes.json();
               if (highlightsData.success && highlightsData.highlights) {
                 highlightsData.highlights.forEach(hl => {
@@ -212,7 +228,6 @@ const Reader = ({ book, currentUser, onBack }) => {
                   }, "epub-highlight", {});
                 });
               }
-
             } catch (err) {
               console.error('Failed to load progress or highlights:', err);
             }
@@ -223,42 +238,36 @@ const Reader = ({ book, currentUser, onBack }) => {
               hideSelectionMenu();
               const chapter = findChapter(fullToc, locationData.start.href);
               setLocation(chapter ? chapter.label.trim() : '...');
-              const cleanHref = locationData.start.href.split('#')[0];
-              setCurrentTocHref(cleanHref);
+              setCurrentTocHref(locationData.start.href.split('#')[0]);
               saveProgress(locationData.start.cfi);
             }
           });
 
           // --- Main Selection Logic ---
           rendition.on('selected', (cfiRange, contents) => {
-            if (isHighlightMode) {
-              applyHighlight(cfiRange);
-            } else {
-              const selection = contents.window.getSelection();
-              if (selection && !selection.isCollapsed) {
-                const range = selection.getRangeAt(0);
-                const rect = range.getBoundingClientRect();
-                const viewerRect = viewerRef.current.getBoundingClientRect();
-                const wrapperRect = viewerWrapperRef.current.getBoundingClientRect();
-
-                const top = (viewerRect.top + rect.top) - wrapperRect.top;
-                const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
-
-                justSelected.current = true;
-
-                setSelectionMenu({
-                  visible: true,
-                  top: top,
-                  left: left,
-                  cfiRange: cfiRange,
-                });
-              }
+            // Disable pop-up menu on iPad to avoid conflicts
+            if (isIPad) {
+              return;
+            }
+            const selection = contents.window.getSelection();
+            if (selection && !selection.isCollapsed) {
+              const range = selection.getRangeAt(0);
+              const rect = range.getBoundingClientRect();
+              const viewerRect = viewerRef.current.getBoundingClientRect();
+              const wrapperRect = viewerWrapperRef.current.getBoundingClientRect();
+              const top = (viewerRect.top + rect.top) - wrapperRect.top;
+              const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
+              justSelected.current = true;
+              setSelectionMenu({
+                visible: true,
+                top: top,
+                left: left,
+                cfiRange: cfiRange,
+              });
             }
           });
 
-          // Add click listener to the parent document to hide the menu
           document.addEventListener('click', handleDocumentClick);
-
 
           await rendition.display(initialLocation);
           const currentLocation = rendition.currentLocation();
@@ -291,9 +300,8 @@ const Reader = ({ book, currentUser, onBack }) => {
       document.removeEventListener('click', handleDocumentClick);
       if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu, applyHighlight, isHighlightMode]);
+  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu, applyHighlight, handleSearchAndHighlight]);
 
-  // Save font size to localStorage whenever it changes
   useEffect(() => {
     try {
       localStorage.setItem('epubReaderFontSize', fontSize.toString());
@@ -302,7 +310,6 @@ const Reader = ({ book, currentUser, onBack }) => {
     }
   }, [fontSize]);
 
-  // Apply font size to rendition when it changes or when loading finishes
   useEffect(() => {
     if (renditionRef.current && !isLoading) {
       renditionRef.current.themes.fontSize(`${fontSize}%`);
@@ -333,6 +340,12 @@ const Reader = ({ book, currentUser, onBack }) => {
 
   return (
     <div className="reader-container">
+      {isHighlightDialogVisible && (
+        <HighlightDialog 
+          onSave={handleSearchAndHighlight}
+          onClose={() => setIsHighlightDialogVisible(false)}
+        />
+      )}
       <div className="reader-header">
         <button className="back-button" onClick={onBack} title="返回书库">
           ←
@@ -345,13 +358,15 @@ const Reader = ({ book, currentUser, onBack }) => {
           <span>{isLoading ? '加载中...' : error || location}</span>
         </div>
         <div className="reader-settings">
-          <button 
-            className={`highlight-mode-button ${isHighlightMode ? 'active' : ''}`}
-            onClick={() => setIsHighlightMode(!isHighlightMode)}
-            title="高亮模式"
-          >
-            ✏️
-          </button>
+          {isIPad && (
+            <button 
+              className="highlight-paste-button"
+              onClick={() => setIsHighlightDialogVisible(true)}
+              title="粘贴高亮"
+            >
+              <Inbox size={18} />
+            </button>
+          )}
           <span>字体:</span>
           <button onClick={() => changeFontSize(-10)} disabled={isLoading}>A-</button>
           <span>{fontSize}%</span>
@@ -380,7 +395,7 @@ const Reader = ({ book, currentUser, onBack }) => {
           {error && <div className="error-message">{error}</div>}
           <div id="viewer" ref={viewerRef} style={{ visibility: isLoading || error ? 'hidden' : 'visible' }}></div>
           
-          {selectionMenu.visible && (
+          {!isIPad && selectionMenu.visible && (
             <SelectionMenu 
               top={selectionMenu.top}
               left={selectionMenu.left}

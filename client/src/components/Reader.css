@@ -98,13 +98,6 @@
   padding: 0;
 }
 
-.highlight-mode-button.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #0056b3;
-}
-
-
 .reader-main {
   display: flex;
   overflow: hidden;
@@ -210,7 +203,7 @@
     top: 0; /* Align to the top of reader-main */
     left: 0;
     bottom: 0;
-    width: 80%;
+    width: 280px;
     z-index: 1000;
     transform: translateX(-100%);
     border-right: 2px solid #ccc;
@@ -224,4 +217,63 @@
 .epub-highlight {
   background-color: yellow;
   mix-blend-mode: multiply; /* Makes the highlight look more natural */
+}
+
+/* iPad-specific Highlight Toolbar */
+.ipad-highlight-toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 10px 20px;
+  border-radius: 25px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  z-index: 1001; /* Ensure it's above the reader content */
+}
+
+.ipad-highlight-toolbar button {
+  background-color: #ffc107; /* A nice yellow for highlight */
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.ipad-highlight-toolbar button:hover:not(:disabled) {
+  background-color: #ffca2c;
+}
+
+.ipad-highlight-toolbar button:disabled {
+  background-color: #6c757d;
+  color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.ipad-highlight-toolbar button:active {
+  transform: scale(0.95);
+  background-color: #e0a800;
+}
+
+.highlight-paste-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1.2em;
+  margin-right: 5px; /* Add some space to the next button */
+}
+
+.highlight-paste-button:hover {
+  background-color: #f0f0f0;
 }
