@@ -7,7 +7,8 @@
   background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start; /* Changed from center to flex-start */
+  padding-top: 10vh; /* Added padding to push content down */
   z-index: 1000;
 }
 

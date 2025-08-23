@@ -3,7 +3,8 @@
 .reader-container {
   display: grid; /* Use Grid layout */
   grid-template-rows: auto 1fr; /* Header gets auto height, main content takes the rest */
-  height: 100vh;
+  /* Use the custom property for height, with a fallback to vh */
+  height: calc(var(--vh, 1vh) * 100);
   width: 100%;
   background-color: #f0f0f0;
 }
@@ -48,11 +49,12 @@
   font-size: 14px;
   flex-shrink: 0; /* Prevent buttons from shrinking */
   transition: background-color 0.2s;
+  min-width: 85px; /* Set a fixed min-width */
+  text-align: center; /* Center the text */
 }
 
 .back-button:hover, .toc-toggle-button:hover {
-  background: #0056b3;
-  color: white;
+  background-color: #e9ecef; /* A subtle grey for hover, less sticky on mobile */
 }
 
 .toc-toggle-button {
@@ -141,20 +143,18 @@
 .viewer-wrapper {
   flex-grow: 1;
   position: relative;
-  /* Center the fixed-size viewer */
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden; /* Hide anything outside the wrapper */
   background-color: #e0e0e0; /* Add a background to the wrapper area */
 }
 
 #viewer {
-  /* Fixed size for stability */
-  width: 800px;
-  height: 95%; /* Take most of the vertical space */
+  /* Responsive width with a max for readability */
+  width: 100%;
+  max-width: 800px;
+  height: 100%; /* Fill the wrapper's height */
   background: white;
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  margin: 0 auto; /* Center the viewer horizontally */
   /* CRITICAL FIX: Prevent the epub content from overflowing its container */
   overflow: hidden;
 }

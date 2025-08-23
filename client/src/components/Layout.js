@@ -1,8 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, LibraryBig, Settings, PanelLeftOpen, X } from 'lucide-react';
 
 const Layout = ({ children, currentPage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Effect to handle the CSS variable for viewport height
+  useEffect(() => {
+    const setVh = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    // Set the value on initial load
+    setVh();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', setVh);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('resize', setVh);
+    };
+  }, []); // Empty dependency array means this effect runs once on mount and cleanup on unmount
 
   const handleLinkClick = (page) => {
     onNavigate(page);
