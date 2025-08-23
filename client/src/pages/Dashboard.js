@@ -1,17 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "../components/ui/button";
+import { getProgressFromDatabase } from '../utils/progressUtils';
 
 function Dashboard({
   books,
   currentUser,
-  progressData,
   uploadMessage,
   setUploadMessage,
   onReadBook,
   onShowDetails,
-  refreshBooks
+  refreshBooks,
+  skipProgressLoad = false  // 新增参数，跳过进度加载
 }) {
   const [uploading, setUploading] = useState(false);
+  const [progressData, setProgressData] = useState({});
+  
+  // 简化的进度加载逻辑，避免从Reader返回时的竞态条件
+  useEffect(() => {
+    if (!currentUser || !books.length || skipProgressLoad) return;
+
+    const loadAllProgress = async () => {
+      const progressMap = {};
+      
+      try {
+        // 并行加载所有书籍的进度
+        await Promise.all(books.map(async (book) => {
+          try {
+            const progress = await getProgressFromDatabase(book.uuid, currentUser.username);
+            if (progress) {
+              progressMap[book.uuid] = progress;
+            }
+          } catch (error) {
+            console.error(`加载书籍 ${book.uuid} 的进度失败:`, error);
+          }
+        }));
+        
+        setProgressData(progressMap);
+      } catch (error) {
+        console.error('加载进度失败:', error);
+      }
+    };
+
+    loadAllProgress();
+  }, [books, currentUser, skipProgressLoad]);
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -104,8 +135,8 @@ function Dashboard({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {books.map(book => {
-              // NOTE: The progress data will need to be keyed by UUID in the future.
-              const hasProgress = progressData[book.id] || progressData[book.uuid];
+              const hasProgress = progressData[book.uuid];
+              
               return (
                 <div key={book.uuid} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between">
                   <div>
@@ -113,6 +144,11 @@ function Dashboard({
                     <p className="text-sm text-gray-600 dark:text-gray-400">Author: {book.author}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-500 truncate">File: {book.original_filename || book.filename}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-500">Uploaded: {formatDate(book.created_at || book.upload_date)}</p>
+                    {hasProgress && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        最后阅读: {formatDate(hasProgress.last_read_at)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex space-x-2 mt-4">
                     <Button 

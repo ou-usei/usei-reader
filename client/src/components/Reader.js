@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ePub from 'epubjs';
 import { Inbox, Settings2 } from 'lucide-react';
 import {
@@ -10,28 +10,25 @@ import {
 import TocItem from './TocItem';
 import SelectionMenu from './SelectionMenu';
 import HighlightDialog from './HighlightDialog';
+import { 
+  getBestProgress,
+  saveProgressToDatabase
+} from '../utils/progressUtils';
 import './Reader.css';
 
 // iPad detection
 const isIPad = /iPad/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-// Debounce function to limit how often a function is called
-const debounce = (func, delay) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), delay);
-  };
-};
+// 简化的Reader组件，类似main分支的结构
 
-const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => {
+const Reader = ({ book, currentUser, onBack }) => {
   const viewerRef = useRef(null);
   const viewerWrapperRef = useRef(null);
   const bookRef = useRef(null);
   const renditionRef = useRef(null);
   const justSelected = useRef(false);
-  // *** SOLUTION: Use a ref to track the latest CFI without causing re-renders ***
-  const latestCfiRef = useRef(initialCfi || null);
+  const isInitialized = useRef(false);
+  const lastKnownLocation = useRef(null); // 跟踪最后已知的准确位置
 
   const [toc, setToc] = useState([]);
   const [location, setLocation] = useState('Loading...');
@@ -51,14 +48,24 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
   const [currentTocHref, setCurrentTocHref] = useState('');
   const [selectionMenu, setSelectionMenu] = useState({ visible: false, top: null, left: null, cfiRange: null });
   const [isHighlightDialogVisible, setIsHighlightDialogVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
-  const debouncedProgressUpdate = useMemo(
-    () => debounce((cfi) => {
-      console.log(`📚 自动保存阅读进度到第 ${cfi} 页...`, { bookUuid: book.uuid });
-      onProgressUpdate(book.uuid, cfi);
-    }, 2000),
-    [book.uuid, onProgressUpdate]
-  );
+  // 获取当前准确位置的函数
+  const getCurrentLocation = useCallback(() => {
+    if (!renditionRef.current) return null;
+    
+    try {
+      const currentLocation = renditionRef.current.currentLocation();
+      if (currentLocation && currentLocation.start && currentLocation.start.cfi) {
+        return currentLocation.start.cfi;
+      }
+    } catch (error) {
+      console.error('获取当前位置失败:', error);
+    }
+    return null;
+  }, []);
+
 
   const findChapter = useCallback((tocItems, href) => {
     if (!tocItems || !href) return null;
@@ -180,16 +187,32 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
         if (isMounted) {
           setToc(fullToc);
 
-          try {
-            const highlightsRes = await fetch(`/api/highlights/${currentUser.username}/${book.uuid}`);
-            const highlightsData = await highlightsRes.json();
-            if (highlightsData.success && highlightsData.highlights) {
-              highlightsData.highlights.forEach(hl => {
-                rendition.annotations.add("highlight", hl.cfi_range, {}, () => {}, "epub-highlight", {});
-              });
+          // 加载进度和高亮
+          let initialLocation = undefined;
+          if (currentUser) {
+            try {
+              const progress = await getBestProgress(book.uuid, currentUser.username);
+              
+              if (progress?.current_cfi) {
+                initialLocation = progress.current_cfi;
+                console.log(`📖 从位置开始: ${initialLocation}`);
+              }
+              
+              // 加载高亮
+              try {
+                const highlightsRes = await fetch(`/api/highlights/${currentUser.username}/${book.uuid}`);
+                const highlightsData = await highlightsRes.json();
+                if (highlightsData.success && highlightsData.highlights) {
+                  highlightsData.highlights.forEach(hl => {
+                    rendition.annotations.add("highlight", hl.cfi_range, {}, () => {}, "epub-highlight", {});
+                  });
+                }
+              } catch (err) {
+                console.error('加载高亮失败:', err);
+              }
+            } catch (err) {
+              console.error('加载进度失败:', err);
             }
-          } catch (err) {
-            console.error('Failed to load highlights:', err);
           }
 
           rendition.on('relocated', (locationData) => {
@@ -199,9 +222,15 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
               setLocation(chapter ? chapter.label.trim() : '...');
               setCurrentTocHref(locationData.start.href.split('#')[0]);
               
-              // *** SOLUTION: Update the ref and call the debounced save ***
-              latestCfiRef.current = locationData.start.cfi;
-              debouncedProgressUpdate(locationData.start.cfi);
+              // 更新最后已知的准确位置
+              lastKnownLocation.current = locationData.start.cfi;
+              
+              // 只显示初始化完成后的真实位置变化
+              if (isInitialized.current) {
+                console.log(`📍 当前阅读位置: ${locationData.start.cfi}`);
+              }
+              
+              // 不再进行实时保存
             }
           });
 
@@ -221,11 +250,30 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
           });
 
           document.addEventListener('click', handleDocumentClick);
-
-          await rendition.display(initialCfi);
+          await rendition.display(initialLocation);
+          
+          // 确保epub.js内部状态与显示位置同步
+          if (initialLocation) {
+            // 等待显示完成，然后强制同步内部状态
+            setTimeout(async () => {
+              try {
+                await rendition.display(initialLocation);
+                console.log('🔄 内部状态已同步');
+              } catch (error) {
+                console.error('同步内部状态失败:', error);
+              }
+            }, 100);
+          }
           
           rendition.themes.fontSize(`${fontSize}%`);
           setIsLoading(false);
+          
+          // 标记初始化完成，开始记录真实的位置变化
+          setTimeout(() => {
+            isInitialized.current = true;
+          }, 500);
+          
+          console.log('📖 阅读器已就绪');
         }
       } catch (err) {
         if (isMounted) {
@@ -239,10 +287,12 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
     loadBook();
     return () => {
       isMounted = false;
+      isInitialized.current = false;
+      lastKnownLocation.current = null;
       document.removeEventListener('click', handleDocumentClick);
       if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, findChapter, hideSelectionMenu, applyHighlight, handleSearchAndHighlight, debouncedProgressUpdate]);
+  }, [book, currentUser, findChapter, hideSelectionMenu, applyHighlight, handleSearchAndHighlight]);
 
   useEffect(() => {
     try {
@@ -258,21 +308,53 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
     }
   }, [fontSize, isLoading]);
 
-  // *** SOLUTION: Create a new handler for the back button ***
+  // 退出时同步保存当前位置
   const handleBack = async () => {
-    // *** Use the latestCfiRef which tracks the most recent location ***
-    if (latestCfiRef.current) {
-      const cfi = latestCfiRef.current;
-      console.log('🚪 保存退出时的最终进度...', { cfi });
-      try {
-        // 等待进度保存完成
-        await onProgressUpdate(book.uuid, cfi);
-        console.log('✅ 进度保存成功，准备返回');
-      } catch (error) {
-        console.error('❌ 进度保存失败:', error);
-      }
+    if (!currentUser || !book) {
+      onBack();
+      return;
     }
-    onBack();
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      // 优先使用最后已知的准确位置（来自relocated事件）
+      let currentCfi = lastKnownLocation.current;
+      
+      // 如果没有，则尝试getCurrentLocation()
+      if (!currentCfi) {
+        currentCfi = getCurrentLocation();
+      }
+      
+      if (currentCfi) {
+        console.log(`📖 保存退出位置: ${currentCfi}`);
+        
+        // 同步保存到数据库
+        const success = await saveProgressToDatabase(book.uuid, currentCfi, currentUser.username);
+        
+        if (success) {
+          console.log('✅ 进度保存成功，可以退出');
+          onBack();
+        } else {
+          throw new Error('保存到数据库失败');
+        }
+      } else {
+        console.log('⚠️ 无法获取当前位置，直接退出');
+        onBack();
+      }
+    } catch (error) {
+      console.error('❌ 保存进度失败:', error);
+      setSaveError('保存进度失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 重试保存
+  const handleRetrySave = () => {
+    setSaveError(null);
+    handleBack();
   };
 
   const handleNext = useCallback(() => {
@@ -305,10 +387,63 @@ const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => 
           onClose={() => setIsHighlightDialogVisible(false)}
         />
       )}
+      
+      {/* 保存错误提示 */}
+      {saveError && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          padding: '20px',
+          border: '2px solid #dc2626',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 9999
+        }}>
+          <p style={{ color: '#dc2626', marginBottom: '15px' }}>{saveError}</p>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={handleRetrySave}
+              style={{
+                background: '#dc2626',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              重试保存
+            </button>
+            <button 
+              onClick={() => {
+                setSaveError(null);
+                onBack(); // 强制退出，不保存
+              }}
+              style={{
+                background: '#6b7280',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              放弃保存并退出
+            </button>
+          </div>
+        </div>
+      )}
       <div className="reader-header">
-        {/* *** SOLUTION: Use the new handleBack function *** */}
-        <button className="back-button" onClick={handleBack} title="返回书库">
-          ←
+        <button 
+          className="back-button" 
+          onClick={handleBack} 
+          disabled={isSaving}
+          title={isSaving ? "正在保存..." : "返回书库"}
+        >
+          {isSaving ? '...' : '←'}
         </button>
         <button className="toc-toggle-button" onClick={() => setIsTocVisible(!isTocVisible)}>
           {isTocVisible ? '隐藏目录' : '目录'}

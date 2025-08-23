@@ -19,12 +19,12 @@ function App() {
   const [books, setBooks] = useState([]);
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [progressData, setProgressData] = useState({});
   const [uploadMessage, setUploadMessage] = useState('');
 
   // State for navigation/views
   const [view, setView] = useState('dashboard'); // 'dashboard', 'reader', 'details', 'settings'
   const [selectedBook, setSelectedBook] = useState(null);
+  const [skipProgressLoad, setSkipProgressLoad] = useState(false);
 
   // --- DATA FETCHING ---
 
@@ -44,73 +44,21 @@ function App() {
       const data = await response.json();
       if (data.success && data.users.length > 0) {
         setUsers(data.users);
-        if (!currentUser) {
-          setCurrentUser(data.users[0]);
-        }
+        // 只在没有当前用户时设置默认用户
+        setCurrentUser(prevUser => prevUser || data.users[0]);
       }
     } catch (error) {
       console.error('Failed to load users:', error);
     }
-  }, [currentUser]);
-
-  const loadProgressForUser = useCallback(async (username) => {
-    if (!username) return;
-    try {
-      const response = await fetch(`/api/progress/${username}`);
-      const data = await response.json();
-      if (data.success) {
-        const progressMap = data.progress.reduce((acc, p) => {
-          acc[p.book_uuid] = p;
-          return acc;
-        }, {});
-        setProgressData(progressMap);
-      }
-    } catch (error) {
-      console.error('Failed to load progress:', error);
-    }
-  }, []);
+  }, []); // 移除currentUser依赖，避免循环
 
   useEffect(() => {
     loadBooks();
     loadUsers();
-  }, [loadBooks, loadUsers]);
-
-  useEffect(() => {
-    if (currentUser) {
-      loadProgressForUser(currentUser.username);
-    }
-  }, [currentUser, loadProgressForUser]);
+  }, []); // 只在组件挂载时执行一次
 
 
   // --- EVENT HANDLERS & STATE MANAGEMENT ---
-
-  const handleProgressUpdate = useCallback(async (bookUuid, cfi) => {
-    if (!currentUser) return;
-
-    // 1. Update local state immediately for a responsive UI
-    setProgressData(prevProgress => ({
-      ...prevProgress,
-      [bookUuid]: {
-        ...prevProgress[bookUuid],
-        current_cfi: cfi,
-        book_uuid: bookUuid,
-        username: currentUser.username,
-      }
-    }));
-
-    // 2. Persist the change to the backend and RETURN THE PROMISE
-    try {
-      return await fetch(`/api/progress/${currentUser.username}/${bookUuid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentCfi: cfi })
-      });
-    } catch (err) {
-      console.error('Failed to save progress:', err);
-      // In case of error, return a rejected promise
-      return Promise.reject(err);
-    }
-  }, [currentUser]);
 
   const handleUserChange = (event) => {
     const selectedUsername = event.target.value;
@@ -127,12 +75,6 @@ function App() {
         setView('dashboard');
         setSelectedBook(null);
         await loadBooks(); // Refresh book list
-        // Also remove progress for the deleted book
-        setProgressData(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[bookUuid];
-          return newProgress;
-        });
       } else {
         setUploadMessage(`❌ Delete failed: ${result.error}`);
       }
@@ -154,12 +96,14 @@ function App() {
   const handleBackToDashboard = async () => {
     setSelectedBook(null);
     setView('dashboard');
-    // CRITICAL: We have just saved the latest progress to the database.
-    // To defeat the state update race condition, we must re-fetch the
-    // "source of truth" to ensure the UI is perfectly in sync.
-    if (currentUser) {
-      await loadProgressForUser(currentUser.username);
-    }
+    
+    // 暂时跳过Dashboard的进度加载，避免覆盖刚保存的进度
+    setSkipProgressLoad(true);
+    
+    // 1秒后恢复正常的进度加载
+    setTimeout(() => {
+      setSkipProgressLoad(false);
+    }, 1000);
   };
 
   const handleNavigate = (page) => {
@@ -172,13 +116,10 @@ function App() {
     switch (view) {
       case 'reader':
         if (!selectedBook || !currentUser) return null;
-        const initialCfi = progressData[selectedBook.uuid]?.current_cfi;
         return (
           <Reader 
             book={selectedBook} 
             currentUser={currentUser} 
-            initialCfi={initialCfi}
-            onProgressUpdate={handleProgressUpdate}
             onBack={handleBackToDashboard} 
           />
         );
@@ -192,12 +133,12 @@ function App() {
           <Dashboard
             books={books}
             currentUser={currentUser}
-            progressData={progressData}
             uploadMessage={uploadMessage}
             setUploadMessage={setUploadMessage}
             onReadBook={handleSelectBookForReading}
             onShowDetails={handleSelectBookForDetails}
             refreshBooks={loadBooks}
+            skipProgressLoad={skipProgressLoad}
           />
         );
     }
