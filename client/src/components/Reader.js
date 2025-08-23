@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ePub from 'epubjs';
-import { Inbox } from 'lucide-react'; // Import the new icon
+import { Inbox, Settings2 } from 'lucide-react'; // Import the new icon
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 import TocItem from './TocItem';
 import SelectionMenu from './SelectionMenu';
 import HighlightDialog from './HighlightDialog'; // Import the new dialog component
@@ -367,10 +373,25 @@ const Reader = ({ book, currentUser, onBack }) => {
               <Inbox size={18} />
             </button>
           )}
-          <span>字体:</span>
-          <button onClick={() => changeFontSize(-10)} disabled={isLoading}>A-</button>
-          <span>{fontSize}%</span>
-          <button onClick={() => changeFontSize(10)} disabled={isLoading}>A+</button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="highlight-paste-button" title="设置">
+                <Settings2 size={18} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <div className="flex items-center justify-between w-full">
+                  <span>字体大小:</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => changeFontSize(-10)} disabled={isLoading} className="px-2 py-1 border rounded">-</button>
+                    <span>{fontSize}%</span>
+                    <button onClick={() => changeFontSize(10)} disabled={isLoading} className="px-2 py-1 border rounded">+</button>
+                  </div>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
