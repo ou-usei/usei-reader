@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import ePub from 'epubjs';
-import { Inbox, Settings2 } from 'lucide-react'; // Import the new icon
+import { Inbox, Settings2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +9,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import TocItem from './TocItem';
 import SelectionMenu from './SelectionMenu';
-import HighlightDialog from './HighlightDialog'; // Import the new dialog component
+import HighlightDialog from './HighlightDialog';
 import './Reader.css';
 
 // iPad detection
@@ -24,44 +24,42 @@ const debounce = (func, delay) => {
   };
 };
 
-const Reader = ({ book, currentUser, onBack }) => {
+const Reader = ({ book, currentUser, initialCfi, onProgressUpdate, onBack }) => {
   const viewerRef = useRef(null);
-  const viewerWrapperRef = useRef(null); // Ref for the wrapper
+  const viewerWrapperRef = useRef(null);
   const bookRef = useRef(null);
   const renditionRef = useRef(null);
-  const justSelected = useRef(false); // Flag to manage click events
+  const justSelected = useRef(false);
+  // *** SOLUTION: Use a ref to track the latest CFI without causing re-renders ***
+  const latestCfiRef = useRef(initialCfi || null);
 
   const [toc, setToc] = useState([]);
   const [location, setLocation] = useState('Loading...');
-  const [isTocVisible, setIsTocVisible] = useState(false); // Default to hidden
+  const [isTocVisible, setIsTocVisible] = useState(false);
   const [fontSize, setFontSize] = useState(() => {
     try {
       const savedSize = localStorage.getItem('epubReaderFontSize');
       const parsedSize = parseInt(savedSize, 10);
-      if (!isNaN(parsedSize) && parsedSize >= 80 && parsedSize <= 200) {
-        return parsedSize;
-      }
+      return !isNaN(parsedSize) && parsedSize >= 80 && parsedSize <= 200 ? parsedSize : 100;
     } catch (error) {
       console.error("Failed to read font size from localStorage", error);
+      return 100;
     }
-    return 100;
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentTocHref, setCurrentTocHref] = useState('');
-
-  // State for the pop-up selection menu (non-iPad)
-  const [selectionMenu, setSelectionMenu] = useState({
-    visible: false,
-    top: null,
-    left: null,
-    cfiRange: null,
-  });
-
-  // State for the highlight dialog (iPad)
+  const [selectionMenu, setSelectionMenu] = useState({ visible: false, top: null, left: null, cfiRange: null });
   const [isHighlightDialogVisible, setIsHighlightDialogVisible] = useState(false);
 
-  // --- Robust Chapter Finder ---
+  const debouncedProgressUpdate = useMemo(
+    () => debounce((cfi) => {
+      console.log(`📚 自动保存阅读进度到第 ${cfi} 页...`, { bookUuid: book.uuid });
+      onProgressUpdate(book.uuid, cfi);
+    }, 2000),
+    [book.uuid, onProgressUpdate]
+  );
+
   const findChapter = useCallback((tocItems, href) => {
     if (!tocItems || !href) return null;
     const cleanHref = href.split('#')[0];
@@ -74,83 +72,54 @@ const Reader = ({ book, currentUser, onBack }) => {
             bestMatch = item;
           }
         }
-        if (item.subitems) {
-          search(item.subitems);
-        }
+        if (item.subitems) search(item.subitems);
       }
     };
     search(tocItems);
     return bestMatch;
   }, []);
 
-  // --- Progress Saving Logic ---
-  const saveProgress = useCallback(debounce(async (cfi) => {
-    if (!currentUser || !book) return;
-    try {
-      await fetch(`/api/progress/${currentUser.username}/${book.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentCfi: cfi })
-      });
-    } catch (err) {
-      console.error('Failed to save progress:', err);
-    }
-  }, 2000), [currentUser, book]);
-
-  // --- Hide selection menu ---
   const hideSelectionMenu = useCallback(() => {
     setSelectionMenu(prev => ({ ...prev, visible: false, cfiRange: null }));
   }, []);
 
-  // --- Apply Highlight ---
   const applyHighlight = useCallback(async (cfiRange) => {
     if (!cfiRange || !renditionRef.current) return;
     try {
-      await renditionRef.current.annotations.add("highlight", cfiRange, {}, (e) => {
-        console.log("highlight clicked", e.target);
-      }, "epub-highlight", {});
+      renditionRef.current.annotations.add("highlight", cfiRange, {}, () => {}, "epub-highlight", {});
       if (currentUser && book) {
         await fetch('/api/highlights', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: currentUser.username,
-            bookId: book.id,
+            bookUuid: book.uuid,
             cfiRange: cfiRange,
           }),
         });
       }
-      if (renditionRef.current.getContents()) {
-        renditionRef.current.getContents().window.getSelection().removeAllRanges();
-      }
+      renditionRef.current.getContents()?.window.getSelection().removeAllRanges();
     } catch (error) {
       console.error("Error applying highlight:", error);
     }
     hideSelectionMenu();
   }, [currentUser, book, hideSelectionMenu]);
 
-  // --- Search and Highlight (for iPad) ---
   const handleSearchAndHighlight = useCallback(async (text) => {
     setIsHighlightDialogVisible(false);
     if (!text || !bookRef.current) return;
-
     try {
-      // Search all sections of the book
       const results = await Promise.all(
-        bookRef.current.spine.spineItems.map(item => {
-          return item.load(bookRef.current.load.bind(bookRef.current))
+        bookRef.current.spine.spineItems.map(item =>
+          item.load(bookRef.current.load.bind(bookRef.current))
             .then(doc => item.find(text))
-            .finally(item.unload.bind(item));
-        })
+            .finally(item.unload.bind(item))
+        )
       );
-      
       const flattenedResults = [].concat.apply([], results);
-
       if (flattenedResults.length > 0) {
-        const firstResultCfi = flattenedResults[0].cfi;
-        await applyHighlight(firstResultCfi);
-        // Optional: navigate to the highlight
-        renditionRef.current.display(firstResultCfi);
+        await applyHighlight(flattenedResults[0].cfi);
+        renditionRef.current.display(flattenedResults[0].cfi);
       } else {
         alert('在当前书籍中未找到匹配的文本。');
       }
@@ -185,27 +154,23 @@ const Reader = ({ book, currentUser, onBack }) => {
         }
         if (viewerRef.current) viewerRef.current.innerHTML = '';
 
-        const bookUrl = `/api/books/${book.id}/view`;
-        const response = await fetch(bookUrl);
-        if (!response.ok) throw new Error(`Failed to fetch book: ${response.statusText}`);
+        const viewUrlResponse = await fetch(`/api/books/${book.uuid}/view`);
+        if (!viewUrlResponse.ok) throw new Error(`Failed to get view URL: ${viewUrlResponse.statusText}`);
+        const viewData = await viewUrlResponse.json();
+        if (!viewData.success || !viewData.url) throw new Error('API did not return a valid view URL.');
+        
+        const response = await fetch(viewData.url);
+        if (!response.ok) throw new Error(`Failed to fetch book from R2: ${response.statusText}`);
         const arrayBuffer = await response.arrayBuffer();
         if (!isMounted) return;
 
         const epubBook = ePub(arrayBuffer, { allowScriptedContent: true });
         bookRef.current = epubBook;
 
-        rendition = epubBook.renderTo(viewerRef.current, {
-          width: '100%',
-          height: '100%',
-          flow: 'paginated',
-          spread: 'none'
-        });
+        rendition = epubBook.renderTo(viewerRef.current, { width: '100%', height: '100%', flow: 'paginated', spread: 'none' });
         renditionRef.current = rendition;
         
-        rendition.themes.register("highlightTheme", {
-          "::selection": { "background": "rgba(255, 255, 0, 0.3)" },
-          ".epub-highlight": { "background-color": "yellow", "mix-blend-mode": "multiply" }
-        });
+        rendition.themes.register("highlightTheme", { "::selection": { "background": "rgba(255, 255, 0, 0.3)" }, ".epub-highlight": { "background-color": "yellow", "mix-blend-mode": "multiply" } });
         rendition.themes.select("highlightTheme");
 
         await epubBook.ready;
@@ -215,28 +180,16 @@ const Reader = ({ book, currentUser, onBack }) => {
         if (isMounted) {
           setToc(fullToc);
 
-          let initialLocation = undefined;
-          if (currentUser) {
-            try {
-              const [progressRes, highlightsRes] = await Promise.all([
-                fetch(`/api/progress/${currentUser.username}/${book.id}`),
-                fetch(`/api/highlights/${currentUser.username}/${book.id}`)
-              ]);
-              const progressData = await progressRes.json();
-              if (progressData.success && progressData.progress?.current_cfi) {
-                initialLocation = progressData.progress.current_cfi;
-              }
-              const highlightsData = await highlightsRes.json();
-              if (highlightsData.success && highlightsData.highlights) {
-                highlightsData.highlights.forEach(hl => {
-                  rendition.annotations.add("highlight", hl.cfi_range, {}, (e) => {
-                    console.log("highlight clicked", e.target);
-                  }, "epub-highlight", {});
-                });
-              }
-            } catch (err) {
-              console.error('Failed to load progress or highlights:', err);
+          try {
+            const highlightsRes = await fetch(`/api/highlights/${currentUser.username}/${book.uuid}`);
+            const highlightsData = await highlightsRes.json();
+            if (highlightsData.success && highlightsData.highlights) {
+              highlightsData.highlights.forEach(hl => {
+                rendition.annotations.add("highlight", hl.cfi_range, {}, () => {}, "epub-highlight", {});
+              });
             }
+          } catch (err) {
+            console.error('Failed to load highlights:', err);
           }
 
           rendition.on('relocated', (locationData) => {
@@ -245,16 +198,15 @@ const Reader = ({ book, currentUser, onBack }) => {
               const chapter = findChapter(fullToc, locationData.start.href);
               setLocation(chapter ? chapter.label.trim() : '...');
               setCurrentTocHref(locationData.start.href.split('#')[0]);
-              saveProgress(locationData.start.cfi);
+              
+              // *** SOLUTION: Update the ref and call the debounced save ***
+              latestCfiRef.current = locationData.start.cfi;
+              debouncedProgressUpdate(locationData.start.cfi);
             }
           });
 
-          // --- Main Selection Logic ---
           rendition.on('selected', (cfiRange, contents) => {
-            // Disable pop-up menu on iPad to avoid conflicts
-            if (isIPad) {
-              return;
-            }
+            if (isIPad) return;
             const selection = contents.window.getSelection();
             if (selection && !selection.isCollapsed) {
               const range = selection.getRangeAt(0);
@@ -264,30 +216,14 @@ const Reader = ({ book, currentUser, onBack }) => {
               const top = (viewerRect.top + rect.top) - wrapperRect.top;
               const left = (viewerRect.left + rect.left + rect.width / 2) - wrapperRect.left;
               justSelected.current = true;
-              setSelectionMenu({
-                visible: true,
-                top: top,
-                left: left,
-                cfiRange: cfiRange,
-              });
+              setSelectionMenu({ visible: true, top, left, cfiRange });
             }
           });
 
           document.addEventListener('click', handleDocumentClick);
 
-          await rendition.display(initialLocation);
-          const currentLocation = rendition.currentLocation();
-          const initialChapter = findChapter(fullToc, currentLocation.start.href);
-          if (isMounted) {
-            setLocation(initialChapter ? initialChapter.label.trim() : '...');
-            setCurrentTocHref(currentLocation.start.href.split('#')[0]);
-          }
+          await rendition.display(initialCfi);
           
-          const viewerElement = viewerRef.current;
-          if (viewerElement) {
-            rendition.resize(viewerElement.clientWidth, viewerElement.clientHeight);
-          }
-
           rendition.themes.fontSize(`${fontSize}%`);
           setIsLoading(false);
         }
@@ -306,7 +242,7 @@ const Reader = ({ book, currentUser, onBack }) => {
       document.removeEventListener('click', handleDocumentClick);
       if (bookRef.current) bookRef.current.destroy();
     };
-  }, [book, currentUser, saveProgress, findChapter, hideSelectionMenu, applyHighlight, handleSearchAndHighlight]);
+  }, [book, currentUser, findChapter, hideSelectionMenu, applyHighlight, handleSearchAndHighlight, debouncedProgressUpdate]);
 
   useEffect(() => {
     try {
@@ -321,6 +257,23 @@ const Reader = ({ book, currentUser, onBack }) => {
       renditionRef.current.themes.fontSize(`${fontSize}%`);
     }
   }, [fontSize, isLoading]);
+
+  // *** SOLUTION: Create a new handler for the back button ***
+  const handleBack = async () => {
+    // *** Use the latestCfiRef which tracks the most recent location ***
+    if (latestCfiRef.current) {
+      const cfi = latestCfiRef.current;
+      console.log('🚪 保存退出时的最终进度...', { cfi });
+      try {
+        // 等待进度保存完成
+        await onProgressUpdate(book.uuid, cfi);
+        console.log('✅ 进度保存成功，准备返回');
+      } catch (error) {
+        console.error('❌ 进度保存失败:', error);
+      }
+    }
+    onBack();
+  };
 
   const handleNext = useCallback(() => {
     hideSelectionMenu();
@@ -353,7 +306,8 @@ const Reader = ({ book, currentUser, onBack }) => {
         />
       )}
       <div className="reader-header">
-        <button className="back-button" onClick={onBack} title="返回书库">
+        {/* *** SOLUTION: Use the new handleBack function *** */}
+        <button className="back-button" onClick={handleBack} title="返回书库">
           ←
         </button>
         <button className="toc-toggle-button" onClick={() => setIsTocVisible(!isTocVisible)}>

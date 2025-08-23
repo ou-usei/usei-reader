@@ -5,6 +5,15 @@ import Reader from './components/Reader';
 import BookDetails from './components/BookDetails';
 import Settings from './pages/Settings'; // Import the new Settings component
 
+// Debounce function to limit how often a function is called
+const debounce = (func, delay) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), delay);
+  };
+};
+
 function App() {
   // State for app status and data
   const [books, setBooks] = useState([]);
@@ -50,9 +59,8 @@ function App() {
       const response = await fetch(`/api/progress/${username}`);
       const data = await response.json();
       if (data.success) {
-        // Convert array to a map for easy lookup: { bookId: progress }
         const progressMap = data.progress.reduce((acc, p) => {
-          acc[p.book_id] = p;
+          acc[p.book_uuid] = p;
           return acc;
         }, {});
         setProgressData(progressMap);
@@ -74,7 +82,35 @@ function App() {
   }, [currentUser, loadProgressForUser]);
 
 
-  // --- EVENT HANDLERS ---
+  // --- EVENT HANDLERS & STATE MANAGEMENT ---
+
+  const handleProgressUpdate = useCallback(async (bookUuid, cfi) => {
+    if (!currentUser) return;
+
+    // 1. Update local state immediately for a responsive UI
+    setProgressData(prevProgress => ({
+      ...prevProgress,
+      [bookUuid]: {
+        ...prevProgress[bookUuid],
+        current_cfi: cfi,
+        book_uuid: bookUuid,
+        username: currentUser.username,
+      }
+    }));
+
+    // 2. Persist the change to the backend and RETURN THE PROMISE
+    try {
+      return await fetch(`/api/progress/${currentUser.username}/${bookUuid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentCfi: cfi })
+      });
+    } catch (err) {
+      console.error('Failed to save progress:', err);
+      // In case of error, return a rejected promise
+      return Promise.reject(err);
+    }
+  }, [currentUser]);
 
   const handleUserChange = (event) => {
     const selectedUsername = event.target.value;
@@ -82,15 +118,21 @@ function App() {
     setCurrentUser(user);
   };
 
-  const handleDeleteBook = async (bookId) => {
+  const handleDeleteBook = async (bookUuid) => {
     try {
-      const response = await fetch(`/api/books/${bookId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/books/${bookUuid}`, { method: 'DELETE' });
       const result = await response.json();
       if (result.success) {
         setUploadMessage(`✅ Book has been deleted.`);
         setView('dashboard');
         setSelectedBook(null);
-        await loadBooks();
+        await loadBooks(); // Refresh book list
+        // Also remove progress for the deleted book
+        setProgressData(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[bookUuid];
+          return newProgress;
+        });
       } else {
         setUploadMessage(`❌ Delete failed: ${result.error}`);
       }
@@ -109,12 +151,14 @@ function App() {
     setView('details');
   };
 
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = async () => {
     setSelectedBook(null);
     setView('dashboard');
-    // Refresh books in case progress was made
+    // CRITICAL: We have just saved the latest progress to the database.
+    // To defeat the state update race condition, we must re-fetch the
+    // "source of truth" to ensure the UI is perfectly in sync.
     if (currentUser) {
-      loadProgressForUser(currentUser.username);
+      await loadProgressForUser(currentUser.username);
     }
   };
 
@@ -127,7 +171,17 @@ function App() {
   const renderContent = () => {
     switch (view) {
       case 'reader':
-        return selectedBook ? <Reader book={selectedBook} currentUser={currentUser} onBack={handleBackToDashboard} /> : null;
+        if (!selectedBook || !currentUser) return null;
+        const initialCfi = progressData[selectedBook.uuid]?.current_cfi;
+        return (
+          <Reader 
+            book={selectedBook} 
+            currentUser={currentUser} 
+            initialCfi={initialCfi}
+            onProgressUpdate={handleProgressUpdate}
+            onBack={handleBackToDashboard} 
+          />
+        );
       case 'details':
         return selectedBook ? <BookDetails book={selectedBook} onBack={handleBackToDashboard} onDelete={handleDeleteBook} /> : null;
       case 'settings':

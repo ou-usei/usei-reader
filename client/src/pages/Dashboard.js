@@ -104,14 +104,15 @@ function Dashboard({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {books.map(book => {
-              const hasProgress = progressData[book.id];
+              // NOTE: The progress data will need to be keyed by UUID in the future.
+              const hasProgress = progressData[book.id] || progressData[book.uuid];
               return (
-                <div key={book.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between">
+                <div key={book.uuid} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between">
                   <div>
                     <h3 className="text-lg font-bold mb-2">{book.title}</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Author: {book.author}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 truncate">File: {book.filename}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">Uploaded: {formatDate(book.upload_date)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 truncate">File: {book.original_filename || book.filename}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">Uploaded: {formatDate(book.created_at || book.upload_date)}</p>
                   </div>
                   <div className="flex space-x-2 mt-4">
                     <Button 

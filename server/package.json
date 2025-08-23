@@ -1,25 +1,29 @@
 {
-  "name": "epub-reader-server",
+  "name": "usei-reader-server",
   "version": "1.0.0",
-  "description": "Backend server for epub reader demo",
+  "description": "Server for the Epub Reader Demo",
   "main": "app.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
-    "db:init": "node database/init.js",
-    "db:reset": "node database/init.js reset",
-    "db:test": "node database/test.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@aws-sdk/lib-storage": "^3.540.0",
+    "@aws-sdk/s3-request-presigner": "^3.540.0",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "form-data": "^4.0.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
-    "node-fetch": "^3.3.2",
-    "path": "^0.12.7",
-    "sqlite3": "^5.1.6"
+    "uuid": "^9.0.1",
+    "pg": "^8.11.3"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  }
+  "devDependencies": {}
 }

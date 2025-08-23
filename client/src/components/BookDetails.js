@@ -6,7 +6,7 @@ const BookDetails = ({ book, onBack, onDelete }) => {
   const handleDelete = () => {
     // Show a confirmation dialog before deleting
     if (window.confirm(`Are you sure you want to delete "${book.title}"? This action cannot be undone.`)) {
-      onDelete(book.id);
+      onDelete(book.uuid);
     }
   };
 
@@ -24,8 +24,8 @@ const BookDetails = ({ book, onBack, onDelete }) => {
         <div className="book-info-panel">
           <h2>书籍信息</h2>
           <p><strong>作者:</strong> {book.author}</p>
-          <p><strong>文件名:</strong> {book.filename}</p>
-          <p><strong>上传时间:</strong> {formatDate(book.upload_date)}</p>
+          <p><strong>文件名:</strong> {book.original_filename}</p>
+          <p><strong>上传时间:</strong> {formatDate(book.created_at)}</p>
         </div>
         <div className="book-actions-panel">
           <h2>操作</h2>
