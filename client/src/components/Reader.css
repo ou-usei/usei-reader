@@ -197,6 +197,29 @@
   }
 }
 
+/* 保存状态指示器样式 */
+.save-status-indicator {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e0e0e0;
+  min-width: 60px;
+  justify-content: center;
+}
+
+.save-status-indicator .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 768px) {
   .toc-panel {
     position: absolute;
