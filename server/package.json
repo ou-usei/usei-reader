@@ -9,7 +9,12 @@
   },
   "scripts": {
     "start": "node app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:ui": "vitest --ui"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {}
   },
   "keywords": [],
   "author": "",
@@ -18,12 +23,20 @@
     "@aws-sdk/client-s3": "^3.540.0",
     "@aws-sdk/lib-storage": "^3.540.0",
     "@aws-sdk/s3-request-presigner": "^3.540.0",
+    "@prisma/client": "^6.15.0",
+    "@supabase/supabase-js": "^2.56.0",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
+    "epub-reader-demo": "file:..",
     "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "uuid": "^9.0.1",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "prisma": "^6.15.0",
+    "uuid": "^9.0.1"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "vitest": "^1.6.0"
+  }
 }
