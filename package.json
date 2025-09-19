@@ -9,7 +9,9 @@
     "client": "cd client && npm start",
     "start": "npm run dev",
     "test-server": "cd server && npm test",
-    "install-server-deps": "cd server && npm install"
+    "test-client": "cd client && npm test",
+    "install-server-deps": "cd server && npm install",
+    "add-ui-deps": "cd client && npx shadcn@latest add button card input label"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

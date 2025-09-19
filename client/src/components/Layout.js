@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Home, LibraryBig, Settings, PanelLeftOpen, X } from 'lucide-react';
+import { Home, LibraryBig, Settings, PanelLeftOpen, X, LogOut } from 'lucide-react';
+import useAuthStore from '../stores/authStore';
 
 const Layout = ({ children, currentPage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { logout } = useAuthStore();
 
   // Effect to handle the CSS variable for viewport height
   useEffect(() => {
@@ -40,8 +42,8 @@ const Layout = ({ children, currentPage, onNavigate }) => {
         <LibraryBig className="h-8 w-8 text-blue-500" />
         <h1 className="ml-3 text-2xl font-bold">Usei Reader</h1>
       </div>
-      <nav>
-        <ul>
+      <nav className="flex flex-col h-[calc(100%-5rem)]">
+        <ul className="flex-grow">
           <li className="mb-2">
             <button onClick={() => handleLinkClick('dashboard')} className={`w-full text-left ${getLinkClass('dashboard')}`}>
               <Home className="w-6 h-6 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" />
@@ -52,6 +54,14 @@ const Layout = ({ children, currentPage, onNavigate }) => {
             <button onClick={() => handleLinkClick('settings')} className={`w-full text-left ${getLinkClass('settings')}`}>
               <Settings className="w-6 h-6 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" />
               <span className="ml-3">Settings</span>
+            </button>
+          </li>
+        </ul>
+        <ul>
+          <li className="mb-2">
+            <button onClick={logout} className={`w-full text-left ${getLinkClass('logout')}`}>
+              <LogOut className="w-6 h-6 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white" />
+              <span className="ml-3">Logout</span>
             </button>
           </li>
         </ul>

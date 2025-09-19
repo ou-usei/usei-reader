@@ -59,6 +59,7 @@ model Highlight {
   userId    Int
   bookId    Int
   cfi_range String
+  note      String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)

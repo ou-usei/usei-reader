@@ -3,6 +3,7 @@ import './HighlightDialog.css';
 
 const HighlightDialog = ({ onSave, onClose }) => {
   const [text, setText] = useState('');
+  const [note, setNote] = useState('');
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -30,25 +31,31 @@ const HighlightDialog = ({ onSave, onClose }) => {
 
   const handleSave = () => {
     if (text.trim()) {
-      onSave(text.trim());
+      onSave(text.trim(), note.trim());
     }
   };
 
   return (
     <div className="highlight-dialog-overlay" onClick={onClose}>
       <div className="highlight-dialog-content" onClick={(e) => e.stopPropagation()}>
-        <h3>粘贴文本以高亮</h3>
-        <p>将您在阅读器中复制的文本粘贴到下方，系统将自动高亮匹配的内容。</p>
+        <h3>Paste Text to Highlight</h3>
+        <p>Paste the text you copied from the reader below, and the system will automatically highlight the matching content.</p>
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="在此处粘贴文本..."
+          onChange={(e) => setText(e.e.target.value)}
+          placeholder="Paste text here..."
           rows="5"
         />
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Add a note (optional)..."
+          rows="3"
+        />
         <div className="highlight-dialog-buttons">
-          <button onClick={onClose} className="cancel-button">取消</button>
-          <button onClick={handleSave} className="save-button">保存高亮</button>
+          <button onClick={onClose} className="cancel-button">Cancel</button>
+          <button onClick={handleSave} className="save-button">Save Highlight</button>
         </div>
       </div>
     </div>
@@ -56,3 +63,4 @@ const HighlightDialog = ({ onSave, onClose }) => {
 };
 
 export default HighlightDialog;
+

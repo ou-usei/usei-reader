@@ -1,6 +1,10 @@
 import React from 'react';
+import useAuthStore from '../stores/authStore';
+import { Button } from '../components/ui/button';
 
-const Settings = ({ users, currentUser, onUserChange }) => {
+const Settings = () => {
+  const { user, logout } = useAuthStore();
+
   return (
     <div>
       <header className="mb-8">
@@ -9,21 +13,13 @@ const Settings = ({ users, currentUser, onUserChange }) => {
       </header>
 
       <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">User Settings</h2>
-        {currentUser && (
-          <div className="flex items-center space-x-4">
-            <span className="font-medium">Current User:</span>
-            <select 
-              onChange={onUserChange} 
-              value={currentUser.username} 
-              className="p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white"
-            >
-              {users.map(user => (
-                <option key={user.username} value={user.username}>
-                  {user.displayName}
-                </option>
-              ))}
-            </select>
+        <h2 className="text-xl font-semibold mb-4">Account</h2>
+        {user && (
+          <div className="flex items-center justify-between">
+            <p>Logged in as: <span className="font-medium">{user.email}</span></p>
+            <Button variant="destructive" onClick={logout}>
+              Logout
+            </Button>
           </div>
         )}
       </div>

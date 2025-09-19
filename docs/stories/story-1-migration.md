@@ -1,7 +1,7 @@
 ---
 story: "数据库与认证服务迁移"
 epic: "核心系统重构与现代化"
-status: "To Do"
+status: "Done"
 version: 1.0
 ---
 

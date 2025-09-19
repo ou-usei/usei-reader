@@ -23,11 +23,11 @@ router.get('/:bookId', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { bookId, cfi_range } = req.body;
+    const { bookId, cfi_range, note } = req.body;
     if (!bookId || !cfi_range) {
       return res.status(400).json({ success: false, error: 'Missing required fields.' });
     }
-    const newHighlight = await highlightService.addHighlight({ userId, bookId, cfi_range });
+    const newHighlight = await highlightService.addHighlight({ userId, bookId, cfi_range, note });
     res.status(201).json({ success: true, highlight: newHighlight });
   } catch (error) {
     console.error('Error adding highlight:', error);

@@ -26,12 +26,13 @@ export const getHighlights = async (userId, bookId) => {
  * @param {string} data.cfi_range - The CFI range of the highlight.
  * @returns {Promise<Highlight>} The newly created highlight object.
  */
-export const createHighlight = async ({ userId, bookId, cfi_range }) => {
+export const createHighlight = async ({ userId, bookId, cfi_range, note }) => {
   return prisma.highlight.create({
     data: {
       userId,
       bookId,
       cfi_range,
+      note,
     },
   });
 };

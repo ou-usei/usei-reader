@@ -18,9 +18,9 @@ export const getHighlightsForBook = async (userId, bookId) => {
  * @param {string} data.cfi_range - The CFI range of the highlight.
  * @returns {Promise<Highlight>}
  */
-export const addHighlight = async ({ userId, bookId, cfi_range }) => {
+export const addHighlight = async ({ userId, bookId, cfi_range, note }) => {
   // Future business logic: Could check for highlight overlaps or limits.
-  return highlightDal.createHighlight({ userId, bookId, cfi_range });
+  return highlightDal.createHighlight({ userId, bookId, cfi_range, note });
 };
 
 /**

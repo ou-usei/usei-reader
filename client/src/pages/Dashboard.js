@@ -1,84 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "../components/ui/button";
-import { getProgressFromDatabase } from '../utils/progressUtils';
+import useBookStore from '../stores/bookStore';
+import useAuthStore from '../stores/authStore';
 
-function Dashboard({
-  books,
-  currentUser,
-  uploadMessage,
-  setUploadMessage,
-  onReadBook,
-  onShowDetails,
-  refreshBooks,
-  skipProgressLoad = false  // 新增参数，跳过进度加载
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [progressData, setProgressData] = useState({});
+function Dashboard({ onReadBook, onShowDetails }) {
+  const { 
+    books, 
+    isLoading, 
+    error, 
+    uploadMessage, 
+    fetchBooks, 
+    uploadBook 
+  } = useBookStore();
   
-  // 简化的进度加载逻辑，避免从Reader返回时的竞态条件
+  const { user } = useAuthStore();
+
   useEffect(() => {
-    if (!currentUser || !books.length || skipProgressLoad) return;
-
-    const loadAllProgress = async () => {
-      const progressMap = {};
-      
-      try {
-        // 并行加载所有书籍的进度
-        await Promise.all(books.map(async (book) => {
-          try {
-            const progress = await getProgressFromDatabase(book.uuid, currentUser.username);
-            if (progress) {
-              progressMap[book.uuid] = progress;
-            }
-          } catch (error) {
-            console.error(`加载书籍 ${book.uuid} 的进度失败:`, error);
-          }
-        }));
-        
-        setProgressData(progressMap);
-      } catch (error) {
-        console.error('加载进度失败:', error);
-      }
-    };
-
-    loadAllProgress();
-  }, [books, currentUser, skipProgressLoad]);
+    // Fetch books when the component mounts
+    fetchBooks();
+  }, [fetchBooks]);
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.epub')) {
-      setUploadMessage('Please select an .epub file');
+      // This is a simple validation, the store could handle more complex logic
+      useBookStore.setState({ uploadMessage: 'Please select an .epub file' });
       return;
     }
 
-    setUploading(true);
-    setUploadMessage('');
-
     const formData = new FormData();
     formData.append('epub', file);
-    formData.append('title', file.name.replace('.epub', ''));
-    formData.append('author', 'Unknown Author');
-
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const result = await response.json();
-      if (result.success) {
-        setUploadMessage(`✅ Upload successful: ${result.book.title}`);
-        refreshBooks();
-        event.target.value = '';
-      } else {
-        setUploadMessage(`❌ Upload failed: ${result.error}`);
-      }
-    } catch (error) {
-      setUploadMessage(`❌ Upload error: ${error.message}`);
-    } finally {
-      setUploading(false);
-    }
+    // The backend will derive title and author from the EPUB metadata
+    
+    await uploadBook(formData);
+    event.target.value = ''; // Clear the input after upload
   };
 
   const formatDate = (dateString) => {
@@ -92,10 +49,10 @@ function Dashboard({
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-gray-500 dark:text-gray-400">Manage your e-book library.</p>
         </div>
-        {currentUser && (
+        {user && (
           <div>
             <h2 className="text-xl font-semibold text-right">
-              Welcome, {currentUser.displayName}
+              Welcome, {user.email}
             </h2>
           </div>
         )}
@@ -108,13 +65,13 @@ function Dashboard({
             type="file"
             accept=".epub"
             onChange={handleFileUpload}
-            disabled={uploading}
+            disabled={isLoading}
             id="epub-upload"
             className="hidden"
           />
           <label htmlFor="epub-upload">
-            <Button asChild disabled={uploading}>
-              <span>{uploading ? 'Uploading...' : 'Choose EPUB File'}</span>
+            <Button asChild disabled={isLoading}>
+              <span>{isLoading ? 'Processing...' : 'Choose EPUB File'}</span>
             </Button>
           </label>
           {uploadMessage && (
@@ -127,42 +84,35 @@ function Dashboard({
 
       <div>
         <h2 className="text-2xl font-bold mb-4">My Library ({books.length})</h2>
-        {books.length === 0 ? (
+        {isLoading && books.length === 0 && <p>Loading books...</p>}
+        {error && <p className="text-red-500">Error: {error}</p>}
+        
+        {!isLoading && !error && books.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
             <p>No books uploaded yet.</p>
             <p>Click the button above to upload your first EPUB e-book.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {books.map(book => {
-              const hasProgress = progressData[book.uuid];
-              
-              return (
-                <div key={book.uuid} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold mb-2">{book.title}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Author: {book.author}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 truncate">File: {book.original_filename || book.filename}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">Uploaded: {formatDate(book.created_at || book.upload_date)}</p>
-                    {hasProgress && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        最后阅读: {formatDate(hasProgress.last_read_at)}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex space-x-2 mt-4">
-                    <Button 
-                      onClick={() => onReadBook(book)} 
-                      className={`flex-1 ${hasProgress ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                      variant={hasProgress ? 'default' : 'secondary'}
-                    >
-                      {hasProgress ? '继续阅读' : '开始阅读'}
-                    </Button>
-                    <Button onClick={() => onShowDetails(book)} variant="outline" className="flex-1">详情</Button>
-                  </div>
+            {books.map(book => (
+              <div key={book.uuid} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-lg font-bold mb-2">{book.title}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Author: {book.author}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 truncate">File: {book.original_filename}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">Uploaded: {formatDate(book.created_at)}</p>
                 </div>
-              );
-            })}
+                <div className="flex space-x-2 mt-4">
+                  <Button 
+                    onClick={() => onReadBook(book)} 
+                    className="flex-1"
+                  >
+                    Read
+                  </Button>
+                  <Button onClick={() => onShowDetails(book)} variant="outline" className="flex-1">Details</Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
