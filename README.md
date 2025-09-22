@@ -1,86 +1,167 @@
-# Epub Reader Demo
+# 📚 EPUB Reader - 家族向け読書管理システム
 
-Demo version of an epub reader with basic functionality including file upload, reading progress tracking, and text excerpts.
+## 🎯 プロジェクト概要
 
-## Features
+本プロジェクトは、家族での電子書籍読書体験を向上させるために開発したWebベースのEPUBリーダーです。複数デバイス間での読書進度同期、家族間でのメモや注釈の共有を通じて、より豊かな読書環境の構築を目指しています。
 
-- 📚 Upload and read EPUB files
-- 📖 Automatic reading progress saving
-- ✂️ Text excerpts and highlights
-- 📱 Mobile-responsive design
-- 🌐 Local network access for testing on multiple devices
+## 💡 開発背景・動機
 
-## Quick Start
+### 解決したかった課題
 
-### Prerequisites
+#### 📱💻 分散した読書環境の統合
+電車通勤時はiPadで、自宅ではノートPCで読書する日常の中で、読書ファイルや進捗が異なるソフトウェアやプラットフォームに分散してしまう問題に直面していました。「今朝の続きはどこだったか？」「あの重要な箇所はどのアプリで読んだか？」といった煩わしさから、**統一されたWebアプリケーション**の必要性を実感しました。
 
-- Node.js (version 14 or higher)
-- npm
+#### 👫 夫婦での読書体験共有の深化
+妻と私は共に読書好きで、これまで自架構のSiYuan（思源）ノートを使って書籍や読書体験を共有していました。しかし時折、**同じ箇所に対して二人とも同じような感想や疑問を持って標注していること**を発見し、「読書中にリアルタイムでお互いの気づきが見られたら、どれほど読書体験が豊かになるだろう」と考えるようになりました。
 
-### Installation and Setup
+#### 📝 制限のない標注・ノート管理
+多くの既存リーダーアプリでは、**書籍の標注やノートの自由な書き出しに制限**があり、後で見返したり、他のツールと連携させることが困難でした。自分の読書記録を完全に管理し、家族と自然に共有できる環境が必要だと感じていました。
 
-1. **Install all dependencies:**
-   ```bash
-   npm run setup
-   ```
+### アプローチ
+クラウドベースの統合プラットフォームとして設計し、従来の電子書籍リーダーでは実現困難な「協調読書体験」の実現を目指しました。
 
-2. **Start the development servers:**
-   ```bash
-   npm run dev
-   ```
+## 🛠️ 技術スタック
 
-   This will start both the frontend (React) and backend (Express) servers concurrently.
+### フロントエンド
+- **React 18** - モダンなUI構築
+- **epub.js** - EPUB解析とレンダリング
+- **Tailwind CSS** - レスポンシブデザイン
+- **Zustand** - 軽量状態管理
+- **Radix UI** - アクセシブルなコンポーネント
 
-3. **Access the application:**
-   - Local: http://localhost:3000
-   - Network: http://[your-ip]:3000 (for testing on mobile devices)
+### バックエンド
+- **Node.js (ES Modules)** - サーバーサイド実装
+- **Express.js** - RESTful API構築
+- **PostgreSQL** - リレーショナルデータベース
+- **Cloudflare R2** - S3互換オブジェクトストレージ
 
-### Individual Commands
+### インフラ・DevOps
+- **Docker & Docker Compose** - コンテナ化とオーケストレーション
+- **Nginx** - リバースプロキシとロードバランシング
 
-- **Start frontend only:** `npm run client`
-- **Start backend only:** `npm run server`
-- **Install dependencies:** `npm run setup`
+## ✅ 実装済み機能
 
-## Project Structure
+### 📖 電子書籍管理
+- EPUBファイルのアップロード・解析
+- メタデータ自動抽出（タイトル、著者、目次等）
+- クラウドストレージとの統合
+
+### 👤 ユーザーシステム
+- ユーザー認証・認可
+- 個人読書プロファイル管理
+- 家族アカウント連携基盤
+
+### 📊 読書行動管理
+- リアルタイム読書進度追跡
+- 章節レベルでの詳細進捗管理
+- 読書時間・習慣の記録
+
+### 🎨 読書体験
+- レスポンシブなEPUBビューア
+- カスタマイズ可能な表示設定
+- マルチデバイス対応
+
+## 🏗️ システム構成
 
 ```
-epub-reader-demo/
-├── client/                 # React frontend
-│   ├── public/
-│   ├── src/
-│   └── package.json
-├── server/                 # Express backend
-│   ├── database/          # SQLite database setup
-│   ├── uploads/           # Uploaded epub files
-│   ├── app.js
-│   └── package.json
-├── package.json           # Root package with scripts
-└── README.md
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   React Client  │────│   Nginx Proxy   │────│  Express Server │
+│   (Port 3000)   │    │   (Port 8423)   │    │   (Backend API) │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                        │
+                                                        ├─────────────────┐
+                                                        │                 │
+                                                ┌───────▼──────┐  ┌───────▼──────┐
+                                                │ PostgreSQL   │  │ Cloudflare   │
+                                                │   Database   │  │      R2      │
+                                                └──────────────┘  └──────────────┘
 ```
 
-## Technology Stack
+## 🚀 セットアップ・実行方法
 
-- **Frontend:** React 18, epub.js
-- **Backend:** Node.js, Express
-- **Database:** SQLite3
-- **Development:** Concurrently for running both servers
+### 前提条件
+- Node.js 18.17.0 以上
+- Docker & Docker Compose
+- PostgreSQL データベース
+- Cloudflare R2 ストレージアカウント
 
-## Development
+### 環境設定
 
-The application runs in development mode with:
-- Frontend on port 3000 (with proxy to backend)
-- Backend on port 3001
-- Hot reloading enabled for both frontend and backend
+**1. 環境変数の設定**
+```bash
+# server/.env を作成
+DATABASE_URL=postgresql://user:password@localhost:5432/epub_reader
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
+R2_ENDPOINT=your_r2_endpoint_url
+R2_BUCKET_NAME=your_bucket_name
+```
 
-## Testing Connection
+**2. 依存関係のインストール**
+```bash
+npm run setup
+```
 
-Once both servers are running, the frontend will automatically test the connection to the backend and display the status on the main page.
+**3. データベース初期化**
+```bash
+cd server && node init-db.js
+```
 
-## Next Steps
+### 実行方法
 
-This is the basic project structure. Additional features will be implemented in subsequent tasks:
-- File upload functionality
-- Epub.js integration
-- Reading progress tracking
-- Text excerpt management
-- Mobile responsiveness
+**開発環境**
+```bash
+npm run dev
+# または
+docker-compose up
+```
+
+**アクセス**
+- 開発サーバー: http://localhost:3000
+- Dockerサーバー: http://localhost:8423
+
+## 🔄 開発中の機能
+
+### 👥 協調読書機能
+現在設計・実装を検討中の機能：
+
+- **注釈・メモ共有システム**
+  - 家族間でのハイライト共有
+  - コメント・感想の相互閲覧
+  - プライバシー設定による公開範囲制御
+
+- **読書分析ダッシュボード**
+  - 家族の読書傾向分析
+  - おすすめ書籍提案
+  - 読書目標設定・達成管理
+
+## 🎨 UI/UX設計思想
+
+- **マルチデバイス対応**: スマートフォンからデスクトップまで一貫した体験
+- **アクセシビリティ**: スクリーンリーダー対応、キーボード操作サポート
+- **パフォーマンス**: 大容量EPUBファイルの効率的レンダリング
+
+## 📈 技術的な取り組み
+
+### パフォーマンス最適化
+- EPUBファイルの段階的読み込み
+- 画像の遅延読み込み
+- フロントエンドキャッシュ戦略
+
+### セキュリティ
+- ファイルアップロード時のバリデーション
+- SQLインジェクション対策
+- XSS攻撃防止
+
+### スケーラビリティ
+- コンテナベースのマイクロサービス構成
+- CDNとの統合準備
+- 水平スケーリング対応設計
+
+## 📝 プロジェクトの意義
+
+本プロジェクトは、単なる電子書籍リーダーではなく、**家族の読書文化を支援するプラットフォーム**として位置づけています。技術的には、EPUBの解析・レンダリング、リアルタイム同期、ユーザー体験設計など、Webアプリケーション開発の幅広い領域をカバーしており、モダンなフロントエンド・バックエンド技術の実践的な活用例となっています。
+
+---
+
+*このプロジェクトは継続的な開発・改善を行っており、新しい技術やユーザーフィードバックを積極的に取り入れています。*
